@@ -1,6 +1,6 @@
 # Milestone 1 Progress Verification
 
-- Status: in progress
+- Status: complete
 - Date: 2026-09-25
 
 ## Passing evidence
@@ -27,8 +27,9 @@
 | Web TypeScript check | Pass |
 | Web production build | Pass |
 | Windows process-tree cancellation regression | Pass repeatedly |
+| GitHub Actions PostgreSQL 17 integration run | Pass in 57 seconds ([CI run #1](https://github.com/patilpushpraj39-lang/forge/actions/runs/36172397576)) |
 
-## PostgreSQL implementation ready for CI
+## PostgreSQL verification
 
 - Ordered migration with checksum validation and an advisory migration lock.
 - PostgreSQL run store with pooled connections and short explicit transactions.
@@ -40,10 +41,11 @@
 - CI starts PostgreSQL 17 and runs four database integration tests, including a
   live Uvicorn API, worker completion, and eight-event SSE replay.
 
-The current machine has neither a PostgreSQL server nor the Psycopg driver and
-cannot download the driver because outbound package access is restricted. The
-four PostgreSQL tests therefore skip locally and remain pending their first CI
-execution; the eight SQLite/sandbox regression tests continue to pass.
+GitHub Actions CI run #1 completed successfully for commit `ab4e265` on 25
+September 2026. The run finished in 57 seconds and supplied the external clean
+environment that was unavailable on the local machine. This closes the final
+Milestone 1 evidence gap. The eight SQLite/sandbox regression tests also
+continue to pass locally.
 
 The browser verification used run `67121173-c33e-401a-b986-9ad9646caa2a`.
 Its identifier remained in the URL, the final state restored as `COMPLETED`,
@@ -67,11 +69,12 @@ state_changed EXECUTING to COMPLETED
 workspace_destroyed
 ```
 
-## Remaining Milestone 1 evidence
+## Milestone conclusion
 
-- Execute the new PostgreSQL-backed CI job and record its result.
-
-The milestone remains open until that external verification succeeds.
+All Milestone 1 acceptance evidence is now present. The walking skeleton is
+complete: a run can be created, durably claimed, executed through the sandbox
+controller boundary, observed live, recovered after reload or worker lease
+expiry, cancelled, and verified against PostgreSQL in CI.
 
 ## Deferred security evidence
 

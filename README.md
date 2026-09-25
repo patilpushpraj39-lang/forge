@@ -6,11 +6,15 @@ This repository is the public product monorepo. Hidden benchmark tests and answe
 
 ## Current status
 
-Milestone 0 is complete. The product contract, architecture decisions, threat model, repository structure, initial contracts, CI scaffold, three benchmark fixtures, and five seed tasks have been validated from clean checkouts. The first executable walking skeleton is the active milestone.
+Milestones 0 and 1 are complete. The product contract, architecture decisions,
+threat model, repository structure, initial contracts, CI scaffold, three
+benchmark fixtures, five seed tasks, and the executable walking skeleton have
+been validated from clean environments.
 
-See [the Milestone 0 verification record](docs/verification/milestone-0.md).
+See [the Milestone 0 verification record](docs/verification/milestone-0.md) and
+[the Milestone 1 verification record](docs/verification/milestone-1-progress.md).
 
-Milestone 1 currently has a tested local persistence adapter, a PostgreSQL
+Milestone 1 delivered a tested local persistence adapter, a PostgreSQL
 source-of-truth implementation, leased worker
 recovery, bounded active-command cancellation, an SSE API, and a
 production-building Next.js console that restores run history after reload. The
@@ -19,7 +23,7 @@ protocol. The first controller backend is local and is not a security sandbox.
 SQLite remains available as a zero-dependency development adapter. PostgreSQL
 adds row versions, non-blocking concurrent claims, migration checksums, partial
 indexes, connection pooling, and a transactional outbox. Its real integration
-suite runs against PostgreSQL in CI. See [the
+suite passed against PostgreSQL 17 in GitHub Actions. See [the
 walking-skeleton design](docs/architecture/walking-skeleton.md).
 
 ## Product boundary
