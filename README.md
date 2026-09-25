@@ -6,7 +6,9 @@ This repository is the public product monorepo. Hidden benchmark tests and answe
 
 ## Current status
 
-Milestone 0 is in progress. The product contract, architecture decisions, threat model, repository structure, initial contracts, and CI scaffold are present. The first executable walking skeleton is the next milestone.
+Milestone 0 is complete. The product contract, architecture decisions, threat model, repository structure, initial contracts, CI scaffold, three benchmark fixtures, and five seed tasks have been validated from clean checkouts. The first executable walking skeleton is the active milestone.
+
+See [the Milestone 0 verification record](docs/verification/milestone-0.md).
 
 ## Product boundary
 
@@ -62,4 +64,3 @@ The command uses only the Node.js standard library and verifies the Milestone 0 
 ## License
 
 MIT. See [LICENSE](LICENSE).
-
