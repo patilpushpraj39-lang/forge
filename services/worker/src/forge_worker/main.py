@@ -6,7 +6,8 @@ import socket
 from pathlib import Path
 from typing import Sequence
 
-from forge_agent_core.run_store import RunState, RunStore, TERMINAL_STATES
+from forge_agent_core import RunStoreProtocol, create_run_store
+from forge_agent_core.run_store import RunState, TERMINAL_STATES
 from forge_sandbox_controller import (
     CommandStatus,
     LocalSandboxController,
@@ -18,7 +19,7 @@ DEFAULT_COMMAND = ("node", "--version")
 
 
 def execute_bounded_command(
-    store: RunStore,
+    store: RunStoreProtocol,
     run_id: str,
     worker_id: str,
     controller: SandboxController,
@@ -95,7 +96,7 @@ def execute_bounded_command(
 
 
 def execute_claimed_run(
-    store: RunStore,
+    store: RunStoreProtocol,
     run: dict[str, object],
     worker_id: str,
     command: Sequence[str] = DEFAULT_COMMAND,
@@ -180,7 +181,7 @@ def execute_claimed_run(
 
 
 def run_once(
-    store: RunStore,
+    store: RunStoreProtocol,
     worker_id: str = "worker-test",
     command: Sequence[str] = DEFAULT_COMMAND,
     timeout_seconds: float = 10,
@@ -208,10 +209,17 @@ def main() -> int:
         "--database",
         default=os.environ.get("FORGE_DATABASE_PATH", ".state/forge.db"),
     )
+    parser.add_argument(
+        "--database-url",
+        default=os.environ.get("FORGE_DATABASE_URL"),
+    )
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--worker-id")
     args = parser.parse_args()
-    store = RunStore(args.database)
+    store = create_run_store(
+        database_url=args.database_url,
+        sqlite_path=args.database,
+    )
     worker_id = args.worker_id or f"{socket.gethostname()}:{os.getpid()}"
 
     if args.once:

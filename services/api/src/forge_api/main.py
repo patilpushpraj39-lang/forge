@@ -11,15 +11,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from forge_agent_core.run_store import RunNotFoundError, RunStore
+from forge_agent_core import RunNotFoundError, create_run_store
 
 
-def database_path() -> Path:
-    configured = os.environ.get("FORGE_DATABASE_PATH")
-    return Path(configured) if configured else Path(".state/forge.db")
-
-
-store = RunStore(database_path())
+store = create_run_store()
 app = FastAPI(title="Forge API", version="0.1.0-dev")
 app.add_middleware(
     CORSMiddleware,
@@ -101,4 +96,3 @@ def cancel_run(run_id: str) -> dict[str, object]:
         return store.cancel_run(run_id)
     except RunNotFoundError as error:
         raise HTTPException(status_code=404, detail="run not found") from error
-

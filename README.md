@@ -10,14 +10,16 @@ Milestone 0 is complete. The product contract, architecture decisions, threat mo
 
 See [the Milestone 0 verification record](docs/verification/milestone-0.md).
 
-Milestone 1 currently has a tested local persistence adapter, leased worker
+Milestone 1 currently has a tested local persistence adapter, a PostgreSQL
+source-of-truth implementation, leased worker
 recovery, bounded active-command cancellation, an SSE API, and a
 production-building Next.js console that restores run history after reload. The
 worker accesses disposable execution only through an opaque sandbox-controller
 protocol. The first controller backend is local and is not a security sandbox.
-The local persistence adapter uses SQLite to exercise recovery and replay;
-PostgreSQL remains
-the required durable backend before the milestone closes. See [the
+SQLite remains available as a zero-dependency development adapter. PostgreSQL
+adds row versions, non-blocking concurrent claims, migration checksums, partial
+indexes, connection pooling, and a transactional outbox. Its real integration
+suite runs against PostgreSQL in CI. See [the
 walking-skeleton design](docs/architecture/walking-skeleton.md).
 
 ## Product boundary
@@ -80,6 +82,21 @@ pnpm install
 python -m venv .venv
 .venv/Scripts/python -m pip install -e packages/agent-core -e services/api -e services/sandbox-controller -e services/worker
 ```
+
+Start PostgreSQL and configure Forge:
+
+```bash
+docker compose -f infra/compose/compose.yaml up -d postgres
+```
+
+On PowerShell:
+
+```powershell
+$env:FORGE_DATABASE_URL="postgresql://forge:forge@localhost:5432/forge"
+```
+
+If `FORGE_DATABASE_URL` is absent, Forge falls back to the SQLite path in
+`FORGE_DATABASE_PATH`.
 
 Start the API:
 

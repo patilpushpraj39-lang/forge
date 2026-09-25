@@ -11,7 +11,7 @@ It intentionally does not claim that the final security or persistence infrastru
 ```text
 Next.js run console
   -> FastAPI POST /runs
-  -> local SQLite run and event store
+  -> PostgreSQL run state, append-only events, and transactional outbox
   -> worker leases oldest CREATED or recoverable active run
   -> worker requests an opaque sandbox from the controller
   -> local controller copies the repository to a temporary workspace
@@ -40,12 +40,19 @@ Next.js run console
 
 ## Deliberate temporary adapters
 
-### SQLite
+### PostgreSQL source of truth
+
+PostgreSQL uses row-level locking with `skip locked` for parallel worker claims,
+short transactions for state transitions, lease expiry for recovery, row
+versions for observability, and a transactional outbox for reliable future
+fan-out. Ordered migrations are checksum-protected and safe to apply
+concurrently. Connection pooling bounds database connections per process.
+
+### SQLite development adapter
 
 SQLite exercises transactions, persistence, replay, leases, cancellation, and
-cross-process recovery without pretending to be the production database. It
-must be replaced by a PostgreSQL adapter with row versions and transactional
-outbox support before Milestone 1 is complete.
+cross-process recovery without pretending to be the production database. It is
+kept for quick local development and the fast unit-test lane.
 
 ### Local sandbox-controller backend
 
@@ -61,5 +68,4 @@ The worker executes `node --version` with a ten-second timeout and capped output
 
 ## Remaining Milestone 1 gates
 
-- PostgreSQL-backed run and event adapter.
-- Automated live HTTP and SSE integration test in CI.
+- Execute the PostgreSQL and live HTTP/SSE integration job in CI.

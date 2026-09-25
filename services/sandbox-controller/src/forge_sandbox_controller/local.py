@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import hashlib
+import os
+import signal
 import shutil
 import subprocess
 import tempfile
@@ -45,12 +47,24 @@ def _snapshot_repository(source: Path, destination: Path) -> tuple[str, int]:
 def _terminate_process(process: subprocess.Popen[str]) -> None:
     if process.poll() is not None:
         return
-    process.terminate()
+
+    if os.name == "nt":
+        subprocess.run(
+            ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    else:
+        os.killpg(os.getpgid(process.pid), signal.SIGTERM)
     try:
-        process.wait(timeout=2)
+        process.wait(timeout=0.5)
     except subprocess.TimeoutExpired:
-        process.kill()
-        process.wait(timeout=2)
+        if os.name == "nt":
+            process.kill()
+        else:
+            os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+        process.wait(timeout=1)
 
 
 class LocalSandboxController:
@@ -94,12 +108,18 @@ class LocalSandboxController:
         if heartbeat_interval_seconds <= 0:
             raise ValueError("heartbeat_interval_seconds must be positive")
         _, workspace = self._require_sandbox(sandbox_id)
+        process_options: dict[str, object] = {}
+        if os.name == "nt":
+            process_options["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+        else:
+            process_options["start_new_session"] = True
         process = subprocess.Popen(
             list(command),
             cwd=workspace,
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
+            **process_options,
         )
         started_at = time.monotonic()
         next_heartbeat = started_at + heartbeat_interval_seconds

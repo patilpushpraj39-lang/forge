@@ -26,6 +26,24 @@
 | Browser reload and durable history restoration | Pass |
 | Web TypeScript check | Pass |
 | Web production build | Pass |
+| Windows process-tree cancellation regression | Pass repeatedly |
+
+## PostgreSQL implementation ready for CI
+
+- Ordered migration with checksum validation and an advisory migration lock.
+- PostgreSQL run store with pooled connections and short explicit transactions.
+- Parallel worker claims use `for update skip locked`.
+- Run updates increment `row_version`; terminal transitions release leases.
+- Every run event creates a transactional outbox message in the same transaction.
+- Partial indexes cover queued runs, expired leases, abandoned cancellations,
+  and unpublished outbox rows; foreign-key access paths are indexed.
+- CI starts PostgreSQL 17 and runs four database integration tests, including a
+  live Uvicorn API, worker completion, and eight-event SSE replay.
+
+The current machine has neither a PostgreSQL server nor the Psycopg driver and
+cannot download the driver because outbound package access is restricted. The
+four PostgreSQL tests therefore skip locally and remain pending their first CI
+execution; the eight SQLite/sandbox regression tests continue to pass.
 
 The browser verification used run `67121173-c33e-401a-b986-9ad9646caa2a`.
 Its identifier remained in the URL, the final state restored as `COMPLETED`,
@@ -51,10 +69,9 @@ workspace_destroyed
 
 ## Remaining Milestone 1 evidence
 
-- PostgreSQL behavior and migration safety.
-- Automated live HTTP and SSE integration coverage in CI.
+- Execute the new PostgreSQL-backed CI job and record its result.
 
-The milestone remains open until these two gates are implemented and verified.
+The milestone remains open until that external verification succeeds.
 
 ## Deferred security evidence
 
