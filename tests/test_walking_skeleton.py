@@ -55,6 +55,15 @@ class WalkingSkeletonTests(unittest.TestCase):
         self.assertIn("command_started", event_types)
         self.assertIn("command_completed", event_types)
         self.assertEqual(event_types[-1], "workspace_destroyed")
+        snapshot_event = next(
+            event
+            for event in events
+            if event["event_type"] == "snapshot_ready"
+        )
+        self.assertEqual(
+            snapshot_event["payload"]["snapshot_artifact"]["media_type"],
+            "application/vnd.forge.snapshot+tar",
+        )
         brief = next(
             event["payload"]["brief"]
             for event in events

@@ -36,6 +36,15 @@ results without reading hidden tests or answer patches. See the
 [repository-intelligence architecture](docs/architecture/repository-intelligence.md)
 and [Milestone 2 verification](docs/verification/milestone-2.md).
 
+Milestone 3 secure execution and patching is active. The controller now creates
+deterministic content-addressed snapshots, validates and applies bounded unified
+patches, generates reproducible diff artifacts, and reconstructs clean
+verification sandboxes. A Docker backend with default-deny networking and
+explicit CPU, memory, process, filesystem, output, and time limits is ready for
+its first GitHub abuse-test run. See the
+[sandbox architecture](docs/architecture/sandbox.md) and
+[Milestone 3 progress record](docs/verification/milestone-3-progress.md).
+
 ## Product boundary
 
 Version 0.1 is intentionally narrow:

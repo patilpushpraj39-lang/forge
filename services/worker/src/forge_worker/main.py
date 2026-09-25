@@ -10,8 +10,8 @@ from forge_agent_core import RunStoreProtocol, create_run_store
 from forge_agent_core.run_store import RunState, TERMINAL_STATES
 from forge_sandbox_controller import (
     CommandStatus,
-    LocalSandboxController,
     SandboxController,
+    create_sandbox_controller,
 )
 
 
@@ -77,11 +77,49 @@ def execute_bounded_command(
         )
         return result.status
 
+    if result.status == CommandStatus.OUTPUT_LIMIT:
+        store.append_event(
+            run_id,
+            "command_output_limited",
+            "worker",
+            {"output": result.output, "output_truncated": True},
+        )
+        store.transition(
+            run_id,
+            RunState.EXECUTING,
+            RunState.FAILED,
+            "worker",
+            {"reason": "command_output_limit"},
+            lease_owner=worker_id,
+        )
+        return result.status
+
+    if result.status == CommandStatus.RESOURCE_LIMIT:
+        store.append_event(
+            run_id,
+            "command_resource_limited",
+            "worker",
+            {"output": result.output},
+        )
+        store.transition(
+            run_id,
+            RunState.EXECUTING,
+            RunState.FAILED,
+            "worker",
+            {"reason": "command_resource_limit"},
+            lease_owner=worker_id,
+        )
+        return result.status
+
     store.append_event(
         run_id,
         "command_completed",
         "worker",
-        {"exit_code": result.exit_code, "output": result.output},
+        {
+            "exit_code": result.exit_code,
+            "output": result.output,
+            "output_truncated": result.output_truncated,
+        },
     )
     if result.status == CommandStatus.FAILED:
         store.transition(
@@ -107,7 +145,7 @@ def execute_claimed_run(
     run_id = str(run["run_id"])
     repository_path = Path(str(run["repository_path"]))
     sandbox_id: str | None = None
-    sandbox_controller = controller or LocalSandboxController()
+    sandbox_controller = controller or create_sandbox_controller()
     try:
         if store.is_cancellation_requested(run_id):
             store.acknowledge_cancellation(run_id, worker_id)
@@ -123,6 +161,11 @@ def execute_claimed_run(
                 "sandbox_id": sandbox.sandbox_id,
                 "snapshot_hash": sandbox.snapshot_hash,
                 "file_count": sandbox.file_count,
+                "snapshot_artifact": (
+                    sandbox.snapshot_artifact.to_dict()
+                    if sandbox.snapshot_artifact is not None
+                    else None
+                ),
             },
         )
         manifest = sandbox_controller.index_repository(sandbox.sandbox_id)

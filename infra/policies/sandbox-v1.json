@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "backend": "docker",
+  "image": {
+    "immutable_digest_required": true
+  },
+  "identity": {
+    "user": "65532:65532",
+    "no_new_privileges": true,
+    "capabilities": []
+  },
+  "network": {
+    "mode": "none"
+  },
+  "filesystem": {
+    "root_read_only": true,
+    "workspace_mount_only": true,
+    "workspace_bytes": 67108864,
+    "temporary_megabytes": 64,
+    "symlinks_in_snapshots": false
+  },
+  "resources": {
+    "cpu_count": 1.0,
+    "memory_megabytes": 256,
+    "process_limit": 64,
+    "output_bytes": 65536,
+    "open_files": 256
+  },
+  "secrets": {
+    "inherit_host_environment": false
+  },
+  "lifecycle": {
+    "container_per_command": true,
+    "remove_after_command": true
+  }
+}

@@ -50,3 +50,30 @@ jobs:
       - run: python scripts/run-python-tests.py
       - run: pnpm web:typecheck
       - run: pnpm web:build
+
+  sandbox-abuse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Resolve immutable sandbox image
+        shell: bash
+        run: |
+          docker pull python:3.12-slim-bookworm
+          image="$(docker image inspect python:3.12-slim-bookworm --format='{{index .RepoDigests 0}}')"
+          test -n "$image"
+          echo "FORGE_TEST_DOCKER_IMAGE=$image" >> "$GITHUB_ENV"
+      - run: >-
+          python -m pip install
+          -e packages/repo-intelligence
+          -e services/sandbox-controller
+      - run: >-
+          python -m unittest discover
+          -s tests
+          -p 'test_docker_sandbox.py'
+          -v
