@@ -3,12 +3,13 @@
   "version": "0.0.0",
   "private": true,
   "description": "Sandboxed autonomous software-engineering platform",
-  "packageManager": "pnpm@10.17.1",
+  "packageManager": "pnpm@11.19.0",
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "check:scaffold": "node scripts/validate-scaffold.mjs"
+    "check:scaffold": "node scripts/validate-scaffold.mjs",
+    "web:build": "pnpm --filter @forge/web build",
+    "web:typecheck": "pnpm --filter @forge/web typecheck"
   }
 }
-

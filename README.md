@@ -10,6 +10,8 @@ Milestone 0 is complete. The product contract, architecture decisions, threat mo
 
 See [the Milestone 0 verification record](docs/verification/milestone-0.md).
 
+Milestone 1 currently has a tested local persistence adapter, a single-run worker, an SSE API, and a production-building Next.js console. The local adapter uses SQLite to exercise recovery and replay; PostgreSQL remains the required durable backend before the milestone closes. See [the walking-skeleton design](docs/architecture/walking-skeleton.md).
+
 ## Product boundary
 
 Version 0.1 is intentionally narrow:
@@ -60,6 +62,44 @@ node scripts/validate-scaffold.mjs
 ```
 
 The command uses only the Node.js standard library and verifies the Milestone 0 repository invariants.
+
+## Run the walking skeleton
+
+Install the workspaces:
+
+```bash
+pnpm install
+python -m venv .venv
+.venv/Scripts/python -m pip install -e packages/agent-core -e services/api -e services/worker
+```
+
+Start the API:
+
+```bash
+.venv/Scripts/python -m uvicorn forge_api.main:app --host 127.0.0.1 --port 8000
+```
+
+Start the web console in another terminal:
+
+```bash
+pnpm --filter @forge/web dev
+```
+
+After creating a run, advance one queued run from a third terminal:
+
+```bash
+.venv/Scripts/python -m forge_worker.main --database .state/forge.db --once
+```
+
+Run the current verification suite:
+
+```bash
+python scripts/run-python-tests.py
+pnpm web:typecheck
+pnpm web:build
+```
+
+The worker currently creates a disposable copied workspace and executes only the fixed `node --version` command. It is a walking-skeleton boundary, not a security sandbox.
 
 ## License
 
