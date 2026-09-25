@@ -107,7 +107,7 @@ class PostgresIntegrationTests(unittest.TestCase):
         events = self.store.list_events(str(created["run_id"]))
         self.assertEqual(completed["state"], "COMPLETED")
         self.assertGreater(int(completed["row_version"]), 0)
-        self.assertEqual([event["sequence"] for event in events], list(range(1, 9)))
+        self.assertEqual([event["sequence"] for event in events], list(range(1, 10)))
 
         with psycopg.connect(self.database_url) as connection:
             outbox_count = connection.execute(
@@ -118,7 +118,7 @@ class PostgresIntegrationTests(unittest.TestCase):
                 """,
                 (str(created["run_id"]),),
             ).fetchone()[0]
-        self.assertEqual(outbox_count, 8)
+        self.assertEqual(outbox_count, 9)
 
     def test_live_api_worker_and_sse_replay(self) -> None:
         from forge_agent_core.postgres_run_store import PostgresRunStore
@@ -130,6 +130,7 @@ class PostgresIntegrationTests(unittest.TestCase):
         environment["FORGE_MIGRATIONS_PATH"] = str(self.migrations_path)
         source_paths = [
             ROOT / "packages" / "agent-core" / "src",
+            ROOT / "packages" / "repo-intelligence" / "src",
             ROOT / "services" / "api" / "src",
             ROOT / "services" / "sandbox-controller" / "src",
             ROOT / "services" / "worker" / "src",
@@ -174,7 +175,7 @@ class PostgresIntegrationTests(unittest.TestCase):
             events = self._read_sse_events(
                 f"http://127.0.0.1:{port}/runs/{created['run_id']}/events/stream"
             )
-            self.assertEqual([event["sequence"] for event in events], list(range(1, 9)))
+            self.assertEqual([event["sequence"] for event in events], list(range(1, 10)))
             self.assertEqual(events[-1]["event_type"], "workspace_destroyed")
         finally:
             api.terminate()
@@ -232,7 +233,7 @@ class PostgresIntegrationTests(unittest.TestCase):
                 if not line.startswith("data: "):
                     continue
                 events.append(json.loads(line.removeprefix("data: ")))
-                if len(events) == 8:
+                if len(events) == 9:
                     break
         return events
 

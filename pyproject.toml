@@ -18,3 +18,4 @@ members = [
 [tool.uv.sources]
 forge-agent-core = { workspace = true }
 forge-sandbox-controller = { workspace = true }
+forge-repo-intelligence = { workspace = true }

@@ -66,6 +66,7 @@ container-backed policy remains Milestone 3 work.
 
 The worker executes `node --version` with a ten-second timeout and capped output. Arbitrary repository commands are not accepted. Command policy and task-specific tool execution are later milestones.
 
-## Remaining Milestone 1 gates
+## Milestone status
 
-- Execute the PostgreSQL and live HTTP/SSE integration job in CI.
+Milestone 1 is complete. Its PostgreSQL and live HTTP/SSE integration job passed
+in GitHub Actions; repository indexing is layered onto this path in Milestone 2.

@@ -2,7 +2,7 @@
 name = "forge-sandbox-controller"
 version = "0.0.0"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = ["forge-repo-intelligence==0.0.0"]
 
 [build-system]
 requires = ["hatchling"]

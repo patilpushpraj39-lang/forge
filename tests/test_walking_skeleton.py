@@ -49,11 +49,19 @@ class WalkingSkeletonTests(unittest.TestCase):
         event_types = [event["event_type"] for event in events]
 
         self.assertEqual(completed["state"], RunState.COMPLETED)
-        self.assertEqual([event["sequence"] for event in events], list(range(1, 9)))
+        self.assertEqual([event["sequence"] for event in events], list(range(1, 10)))
         self.assertIn("snapshot_ready", event_types)
+        self.assertIn("repository_indexed", event_types)
         self.assertIn("command_started", event_types)
         self.assertIn("command_completed", event_types)
         self.assertEqual(event_types[-1], "workspace_destroyed")
+        brief = next(
+            event["payload"]["brief"]
+            for event in events
+            if event["event_type"] == "repository_indexed"
+        )
+        self.assertEqual(brief["languages"], {"Markdown": 1})
+        self.assertEqual(brief["indexed_file_count"], 1)
         required_event_keys = {
             "event_id",
             "run_id",

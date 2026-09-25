@@ -125,6 +125,13 @@ def execute_claimed_run(
                 "file_count": sandbox.file_count,
             },
         )
+        manifest = sandbox_controller.index_repository(sandbox.sandbox_id)
+        store.append_event(
+            run_id,
+            "repository_indexed",
+            "worker",
+            {"brief": manifest.brief()},
+        )
         if store.is_cancellation_requested(run_id):
             store.acknowledge_cancellation(run_id, worker_id)
             return

@@ -9,7 +9,16 @@ import tempfile
 import time
 import uuid
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from pathlib import Path
+
+from forge_repo_intelligence import (
+    ContextPack,
+    RepositoryIndex,
+    RepositoryIndexer,
+    RepositoryManifest,
+    SearchResult,
+)
 
 from .protocol import (
     CommandResult,
@@ -67,6 +76,14 @@ def _terminate_process(process: subprocess.Popen[str]) -> None:
         process.wait(timeout=1)
 
 
+@dataclass
+class _SandboxState:
+    root: Path
+    workspace: Path
+    snapshot_hash: str
+    repository_index: RepositoryIndex | None = None
+
+
 class LocalSandboxController:
     """Disposable local backend for the sandbox-controller protocol.
 
@@ -76,7 +93,8 @@ class LocalSandboxController:
     """
 
     def __init__(self) -> None:
-        self._sandboxes: dict[str, tuple[Path, Path]] = {}
+        self._sandboxes: dict[str, _SandboxState] = {}
+        self._indexer = RepositoryIndexer()
 
     def create(self, repository_path: Path) -> SandboxHandle:
         if not repository_path.is_dir():
@@ -91,8 +109,60 @@ class LocalSandboxController:
         except Exception:
             shutil.rmtree(root, ignore_errors=True)
             raise
-        self._sandboxes[sandbox_id] = (root, workspace)
+        self._sandboxes[sandbox_id] = _SandboxState(
+            root, workspace, snapshot_hash
+        )
         return SandboxHandle(sandbox_id, snapshot_hash, file_count)
+
+    def index_repository(self, sandbox_id: str) -> RepositoryManifest:
+        state = self._require_sandbox(sandbox_id)
+        if state.repository_index is None:
+            state.repository_index = self._indexer.build(
+                state.workspace, state.snapshot_hash
+            )
+        return state.repository_index.manifest
+
+    def search_repository(
+        self,
+        sandbox_id: str,
+        query: str,
+        modes: Sequence[str] = ("path", "text", "symbol"),
+        limit: int = 20,
+    ) -> tuple[SearchResult, ...]:
+        repository_index = self._repository_index(sandbox_id)
+        return repository_index.search(query, modes=modes, limit=limit)
+
+    def dependency_neighborhood(
+        self,
+        sandbox_id: str,
+        path: str,
+        max_depth: int = 1,
+        limit: int = 20,
+    ) -> tuple[SearchResult, ...]:
+        repository_index = self._repository_index(sandbox_id)
+        return repository_index.dependency_neighborhood(
+            path, max_depth=max_depth, limit=limit
+        )
+
+    def rank_relevant_files(
+        self,
+        sandbox_id: str,
+        objective: str,
+        limit: int = 10,
+    ) -> tuple[SearchResult, ...]:
+        repository_index = self._repository_index(sandbox_id)
+        return repository_index.rank_relevant_files(objective, limit=limit)
+
+    def build_context_pack(
+        self,
+        sandbox_id: str,
+        results: Sequence[SearchResult],
+        budget_characters: int,
+    ) -> ContextPack:
+        repository_index = self._repository_index(sandbox_id)
+        return repository_index.build_context_pack(
+            results, budget_characters=budget_characters
+        )
 
     def execute(
         self,
@@ -107,7 +177,7 @@ class LocalSandboxController:
             raise ValueError("timeout_seconds must be positive")
         if heartbeat_interval_seconds <= 0:
             raise ValueError("heartbeat_interval_seconds must be positive")
-        _, workspace = self._require_sandbox(sandbox_id)
+        workspace = self._require_sandbox(sandbox_id).workspace
         process_options: dict[str, object] = {}
         if os.name == "nt":
             process_options["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
@@ -150,11 +220,17 @@ class LocalSandboxController:
         return CommandResult(status, process.returncode, output[:4096])
 
     def destroy(self, sandbox_id: str) -> None:
-        root, _ = self._require_sandbox(sandbox_id)
+        root = self._require_sandbox(sandbox_id).root
         del self._sandboxes[sandbox_id]
         shutil.rmtree(root)
 
-    def _require_sandbox(self, sandbox_id: str) -> tuple[Path, Path]:
+    def _repository_index(self, sandbox_id: str) -> RepositoryIndex:
+        self.index_repository(sandbox_id)
+        repository_index = self._require_sandbox(sandbox_id).repository_index
+        assert repository_index is not None
+        return repository_index
+
+    def _require_sandbox(self, sandbox_id: str) -> _SandboxState:
         try:
             return self._sandboxes[sandbox_id]
         except KeyError as error:

@@ -6,7 +6,8 @@ This repository is the public product monorepo. Hidden benchmark tests and answe
 
 ## Current status
 
-Milestones 0 and 1 are complete. The product contract, architecture decisions,
+Milestones 0 and 1 are complete. Milestone 2 repository intelligence is
+implemented and awaiting clean CI reproduction. The product contract, architecture decisions,
 threat model, repository structure, initial contracts, CI scaffold, three
 benchmark fixtures, five seed tasks, and the executable walking skeleton have
 been validated from clean environments.
@@ -25,6 +26,15 @@ adds row versions, non-blocking concurrent claims, migration checksums, partial
 indexes, connection pooling, and a transactional outbox. Its real integration
 suite passed against PostgreSQL 17 in GitHub Actions. See [the
 walking-skeleton design](docs/architecture/walking-skeleton.md).
+
+The repository-intelligence layer now creates ignore-aware manifests, detects
+languages and build systems, extracts Python and TypeScript symbols/imports,
+supports structural and lexical retrieval, and produces size-bounded context
+with snapshot and line provenance. Its objective ranking found the relevant
+production source file for all five private seed tasks within the top three
+results without reading hidden tests or answer patches. See the
+[repository-intelligence architecture](docs/architecture/repository-intelligence.md)
+and [Milestone 2 verification](docs/verification/milestone-2.md).
 
 ## Product boundary
 

@@ -21,6 +21,20 @@ type RunEvent = {
   payload: Record<string, unknown>;
 };
 
+type RepositoryBrief = {
+  snapshot_hash: string;
+  manifest_hash: string;
+  file_count: number;
+  indexed_file_count: number;
+  ignored_path_count: number;
+  binary_file_count: number;
+  oversized_file_count: number;
+  total_bytes: number;
+  languages: Record<string, number>;
+  build_systems: string[];
+  test_commands: string[];
+};
+
 const apiBase =
   process.env.NEXT_PUBLIC_FORGE_API_URL ?? "http://localhost:8000";
 
@@ -32,6 +46,9 @@ export function RunConsole() {
   const [submitting, setSubmitting] = useState(false);
 
   const runId = run?.run_id;
+  const repositoryBrief = events.find(
+    (event) => event.event_type === "repository_indexed"
+  )?.payload.brief as RepositoryBrief | undefined;
 
   useEffect(() => {
     const restoredRunId = new URLSearchParams(window.location.search).get("run");
@@ -160,6 +177,60 @@ export function RunConsole() {
             Cancel
           </button>
         </div>
+      ) : null}
+
+      {repositoryBrief ? (
+        <section className="repository-brief" aria-label="Repository brief">
+          <div className="brief-heading">
+            <div>
+              <span className="label">Repository intelligence</span>
+              <h2>Repository brief</h2>
+            </div>
+            <code title={repositoryBrief.manifest_hash}>
+              {repositoryBrief.manifest_hash.slice(0, 12)}
+            </code>
+          </div>
+          <div className="brief-metrics">
+            <div>
+              <strong>{repositoryBrief.indexed_file_count}</strong>
+              <span>files indexed</span>
+            </div>
+            <div>
+              <strong>{repositoryBrief.ignored_path_count}</strong>
+              <span>paths ignored</span>
+            </div>
+            <div>
+              <strong>
+                {repositoryBrief.binary_file_count +
+                  repositoryBrief.oversized_file_count}
+              </strong>
+              <span>files safely excluded</span>
+            </div>
+          </div>
+          <div className="brief-details">
+            <div>
+              <span className="label">Languages</span>
+              <p>
+                {Object.entries(repositoryBrief.languages)
+                  .map(([language, count]) => `${language} ${count}`)
+                  .join(" · ") || "No text files detected"}
+              </p>
+            </div>
+            <div>
+              <span className="label">Build systems</span>
+              <p>
+                {repositoryBrief.build_systems.join(" · ") || "Not detected"}
+              </p>
+            </div>
+            <div>
+              <span className="label">Suggested verification</span>
+              <p>
+                {repositoryBrief.test_commands.join(" · ") ||
+                  "No standard test command detected"}
+              </p>
+            </div>
+          </div>
+        </section>
       ) : null}
 
       <ol className="timeline">
