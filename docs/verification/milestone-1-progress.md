@@ -49,10 +49,15 @@ state_changed EXECUTING to COMPLETED
 workspace_destroyed
 ```
 
-## Not yet proven
+## Remaining Milestone 1 evidence
 
 - PostgreSQL behavior and migration safety.
-- Process, filesystem, network, and resource isolation.
 - Automated live HTTP and SSE integration coverage in CI.
 
-The milestone remains open until these gates are implemented and verified.
+The milestone remains open until these two gates are implemented and verified.
+
+## Deferred security evidence
+
+Process, filesystem, network, syscall, and resource isolation are deliberately
+deferred to the container-backed sandbox work in Milestone 3. The current local
+controller is a protocol proof, not a security boundary.
