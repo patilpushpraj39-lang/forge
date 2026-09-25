@@ -13,7 +13,10 @@ See [the Milestone 0 verification record](docs/verification/milestone-0.md).
 Milestone 1 currently has a tested local persistence adapter, leased worker
 recovery, bounded active-command cancellation, an SSE API, and a
 production-building Next.js console that restores run history after reload. The
-local adapter uses SQLite to exercise recovery and replay; PostgreSQL remains
+worker accesses disposable execution only through an opaque sandbox-controller
+protocol. The first controller backend is local and is not a security sandbox.
+The local persistence adapter uses SQLite to exercise recovery and replay;
+PostgreSQL remains
 the required durable backend before the milestone closes. See [the
 walking-skeleton design](docs/architecture/walking-skeleton.md).
 
@@ -75,7 +78,7 @@ Install the workspaces:
 ```bash
 pnpm install
 python -m venv .venv
-.venv/Scripts/python -m pip install -e packages/agent-core -e services/api -e services/worker
+.venv/Scripts/python -m pip install -e packages/agent-core -e services/api -e services/sandbox-controller -e services/worker
 ```
 
 Start the API:

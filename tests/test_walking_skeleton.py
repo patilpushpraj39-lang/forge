@@ -8,6 +8,10 @@ import unittest
 from pathlib import Path
 
 from forge_agent_core.run_store import RunState, RunStore
+from forge_sandbox_controller import (
+    LocalSandboxController,
+    SandboxNotFoundError,
+)
 from forge_worker.main import run_once
 
 
@@ -90,6 +94,43 @@ class WalkingSkeletonTests(unittest.TestCase):
         self.assertEqual(events[-1]["event_type"], "lease_recovered")
         self.assertEqual(events[-1]["payload"]["previous_worker_id"], "worker-one")
 
+    def test_active_command_heartbeats_prevent_duplicate_claim(self) -> None:
+        store = RunStore(self.database)
+        created = store.create_run(str(self.repository))
+        run_id = str(created["run_id"])
+        worker = threading.Thread(
+            target=run_once,
+            kwargs={
+                "store": store,
+                "worker_id": "worker-heartbeat",
+                "command": (sys.executable, "-c", "import time; time.sleep(0.5)"),
+                "timeout_seconds": 2,
+                "lease_seconds": 0.15,
+            },
+            daemon=True,
+        )
+        worker.start()
+
+        deadline = time.monotonic() + 2
+        while time.monotonic() < deadline:
+            event_types = [
+                event["event_type"] for event in store.list_events(run_id)
+            ]
+            if "command_started" in event_types:
+                break
+            time.sleep(0.01)
+        else:
+            self.fail("worker did not start the command")
+
+        time.sleep(0.22)
+        self.assertIsNone(store.claim_next_run("duplicate-worker", lease_seconds=1))
+        worker.join(timeout=3)
+
+        self.assertFalse(worker.is_alive())
+        completed = store.get_run(run_id)
+        self.assertEqual(completed["state"], RunState.COMPLETED)
+        self.assertEqual(completed["attempt"], 1)
+
     def test_active_command_is_terminated_after_cancellation(self) -> None:
         store = RunStore(self.database)
         created = store.create_run(str(self.repository))
@@ -151,6 +192,30 @@ class WalkingSkeletonTests(unittest.TestCase):
         self.assertIsNone(run["lease_owner"])
         events = store.list_events(str(created["run_id"]))
         self.assertIn("command_timed_out", [event["event_type"] for event in events])
+
+    def test_local_sandbox_uses_opaque_handle_and_is_destroyed(self) -> None:
+        controller = LocalSandboxController()
+        sandbox = controller.create(self.repository)
+
+        self.assertNotIn(str(self.root), sandbox.sandbox_id)
+        result = controller.execute(
+            sandbox.sandbox_id,
+            (sys.executable, "-c", "print('sandbox-ok')"),
+            timeout_seconds=1,
+            should_cancel=lambda: False,
+            heartbeat=lambda: None,
+            heartbeat_interval_seconds=0.1,
+        )
+        controller.destroy(sandbox.sandbox_id)
+
+        self.assertEqual(result.exit_code, 0)
+        self.assertEqual(result.output.strip(), "sandbox-ok")
+        self.assertEqual(
+            (self.repository / "README.md").read_text(encoding="utf-8"),
+            "fixture\n",
+        )
+        with self.assertRaises(SandboxNotFoundError):
+            controller.destroy(sandbox.sandbox_id)
 
 
 if __name__ == "__main__":

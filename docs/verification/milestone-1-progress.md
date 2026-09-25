@@ -15,6 +15,8 @@
 | Expired active lease recovery by a second worker | Pass |
 | Active command cancellation and process termination | Pass, worker stopped in under 2.5 seconds |
 | Command timeout and lease release | Pass |
+| Opaque sandbox-controller create/execute/destroy protocol | Pass |
+| Source checkout unchanged after local sandbox execution | Pass |
 | Live API health | HTTP 200 |
 | API run creation | HTTP 201 |
 | API-to-worker final state | `COMPLETED` |
@@ -28,6 +30,11 @@
 The browser verification used run `67121173-c33e-401a-b986-9ad9646caa2a`.
 Its identifier remained in the URL, the final state restored as `COMPLETED`,
 and all eight persisted events replayed after a full page reload.
+
+The sandbox-controller CLI verification used run
+`429e47a1-705e-43ba-8868-9276d42dcdcc`. The worker received only sandbox ID
+`d721bff0-719e-491b-97bb-c97128900b40`, completed through the controller, and
+recorded destruction of that same opaque handle as event eight.
 
 ## Live run event sequence
 
@@ -46,7 +53,6 @@ workspace_destroyed
 
 - PostgreSQL behavior and migration safety.
 - Process, filesystem, network, and resource isolation.
-- Sandbox-controller protocol separating workflow code from execution backends.
 - Automated live HTTP and SSE integration coverage in CI.
 
 The milestone remains open until these gates are implemented and verified.

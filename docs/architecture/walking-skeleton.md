@@ -13,9 +13,10 @@ Next.js run console
   -> FastAPI POST /runs
   -> local SQLite run and event store
   -> worker leases oldest CREATED or recoverable active run
-  -> repository copied to a temporary workspace
+  -> worker requests an opaque sandbox from the controller
+  -> local controller copies the repository to a temporary workspace
   -> content-derived snapshot hash recorded
-  -> fixed node --version command executed with a timeout
+  -> controller executes fixed node --version with timeout and cancellation
   -> completion and workspace cleanup events recorded
   -> FastAPI SSE stream replays events to the console
 ```
@@ -32,6 +33,8 @@ Next.js run console
   `CANCELLED` within the bounded shutdown window.
 - Command timeout reaches `FAILED` and releases the worker lease.
 - The API and worker share only the run-store contract and persistent database file.
+- The worker uses an opaque sandbox identifier and cannot access the controller's
+  workspace path or process handle.
 - The browser can reconnect and deduplicate replayed events by event identifier.
 - The Next.js application type-checks and produces a production build.
 
@@ -44,9 +47,13 @@ cross-process recovery without pretending to be the production database. It
 must be replaced by a PostgreSQL adapter with row versions and transactional
 outbox support before Milestone 1 is complete.
 
-### Disposable copied workspace
+### Local sandbox-controller backend
 
-The worker copies the repository to an ignored temporary directory and destroys it after execution. This protects the source checkout from direct modification but does not isolate processes, networking, syscalls, or host resources. The sandbox controller and container policy remain Milestone 3 work.
+The controller copies the repository to an ignored temporary directory and
+destroys it after execution. This proves the create, execute, and destroy
+protocol while protecting the source checkout from direct modification. It does
+not isolate processes, networking, syscalls, or host resources. The
+container-backed policy remains Milestone 3 work.
 
 ### Fixed command
 
@@ -55,5 +62,4 @@ The worker executes `node --version` with a ten-second timeout and capped output
 ## Remaining Milestone 1 gates
 
 - PostgreSQL-backed run and event adapter.
-- Sandbox-controller protocol, even if the first backend remains local.
 - Automated live HTTP and SSE integration test in CI.

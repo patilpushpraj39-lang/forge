@@ -7,6 +7,7 @@ description = "Forge Python workspace metadata"
 [tool.uv.workspace]
 members = [
   "services/api",
+  "services/sandbox-controller",
   "services/worker",
   "packages/agent-core",
   "packages/repo-intelligence",
@@ -16,3 +17,4 @@ members = [
 
 [tool.uv.sources]
 forge-agent-core = { workspace = true }
+forge-sandbox-controller = { workspace = true }
