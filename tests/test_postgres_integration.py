@@ -38,7 +38,8 @@ class PostgresIntegrationTests(unittest.TestCase):
         cls.store = PostgresRunStore(cls.database_url, cls.migrations_path)
         with psycopg.connect(cls.database_url) as connection:
             connection.execute(
-                "truncate table outbox_messages, run_events, runs "
+                "truncate table agent_idempotency_records, outbox_messages, "
+                "run_events, runs "
                 "restart identity cascade"
             )
 
@@ -94,6 +95,46 @@ class PostgresIntegrationTests(unittest.TestCase):
         self.assertNotIn(None, claims)
         claimed_ids = {str(claim["run_id"]) for claim in claims if claim}
         self.assertEqual(claimed_ids, {str(run["run_id"]) for run in created})
+
+    def test_agent_idempotency_survives_ledger_recreation(self) -> None:
+        from forge_agent_core.idempotency import PostgresIdempotencyLedger
+        from forge_agent_core.model_runtime import (
+            ModelStepResult,
+            StopReason,
+            TokenUsage,
+            ToolCall,
+        )
+
+        expected = ModelStepResult(
+            provider="fixture",
+            model="fixture-model",
+            response_id="response-1",
+            stop_reason=StopReason.TOOL_REQUESTED,
+            usage=TokenUsage(10, 2, 3, 1),
+            cost_microusd=12,
+            prompt_version="prompt-v1",
+            tool_version="tools-v1",
+            tool_calls=(
+                ToolCall("call-1", "read_file", {"path": "app.py"}),
+            ),
+        )
+        first = PostgresIdempotencyLedger(
+            self.database_url, self.migrations_path
+        )
+        try:
+            first.put_model_step("a" * 64, expected)
+        finally:
+            first.close()
+
+        second = PostgresIdempotencyLedger(
+            self.database_url, self.migrations_path
+        )
+        try:
+            recovered = second.get_model_step("a" * 64)
+        finally:
+            second.close()
+
+        self.assertEqual(recovered, expected)
 
     def test_postgres_worker_writes_events_and_transactional_outbox(self) -> None:
         import psycopg

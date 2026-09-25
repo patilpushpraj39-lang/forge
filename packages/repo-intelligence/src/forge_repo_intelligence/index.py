@@ -529,6 +529,42 @@ class RepositoryIndex:
                 break
         return tuple(results)
 
+    def read_lines(
+        self,
+        path: str,
+        *,
+        start_line: int = 1,
+        end_line: int | None = None,
+        max_characters: int = 20_000,
+    ) -> SearchResult:
+        if start_line < 1:
+            raise ValueError("start_line must be at least one")
+        if max_characters <= 0:
+            raise ValueError("max_characters must be positive")
+        try:
+            entry = self._entries[path]
+        except KeyError as error:
+            raise KeyError(path) from error
+        content = self._read_verified(entry)
+        lines = content.splitlines()
+        if start_line > max(1, len(lines)):
+            raise ValueError("start_line is beyond the end of the file")
+        resolved_end = len(lines) if end_line is None else end_line
+        if resolved_end < start_line:
+            raise ValueError("end_line must not precede start_line")
+        resolved_end = min(resolved_end, len(lines))
+        snippet = "\n".join(lines[start_line - 1 : resolved_end])
+        if len(snippet) > max_characters:
+            raise ValueError("requested file range exceeds the character limit")
+        return SearchResult(
+            self.manifest.snapshot_hash,
+            path,
+            start_line,
+            max(start_line, resolved_end),
+            "file",
+            snippet,
+        )
+
     def search_text(
         self,
         query: str,

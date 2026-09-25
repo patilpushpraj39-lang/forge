@@ -456,6 +456,22 @@ class LocalSandboxController:
         repository_index = self._repository_index(sandbox_id)
         return repository_index.search(query, modes=modes, limit=limit)
 
+    def read_file(
+        self,
+        sandbox_id: str,
+        path: str,
+        start_line: int = 1,
+        end_line: int | None = None,
+        max_characters: int = 20_000,
+    ) -> SearchResult:
+        repository_index = self._repository_index(sandbox_id)
+        return repository_index.read_lines(
+            path,
+            start_line=start_line,
+            end_line=end_line,
+            max_characters=max_characters,
+        )
+
     def dependency_neighborhood(
         self,
         sandbox_id: str,

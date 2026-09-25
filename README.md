@@ -7,7 +7,9 @@ This repository is the public product monorepo. Hidden benchmark tests and answe
 ## Current status
 
 Milestones 0 and 1 are complete. Milestone 2 repository intelligence is
-implemented and awaiting clean CI reproduction. The product contract, architecture decisions,
+implemented and awaiting clean CI reproduction. Milestone 3 secure execution
+is implemented and awaiting its first public Docker abuse-test run. Milestone
+4's bounded-agent foundation is now active. The product contract, architecture decisions,
 threat model, repository structure, initial contracts, CI scaffold, three
 benchmark fixtures, five seed tasks, and the executable walking skeleton have
 been validated from clean environments.
@@ -45,6 +47,14 @@ its first GitHub abuse-test run. Content-addressed artifacts can use a local
 store or an S3-compatible encrypted bucket with explicit retention. See the
 [sandbox architecture](docs/architecture/sandbox.md) and
 [Milestone 3 progress record](docs/verification/milestone-3-progress.md).
+
+The Milestone 4 foundation adds a provider-neutral model runtime, an OpenAI
+Responses API adapter, strict serial tool schemas, code-enforced token/cost/time
+and action budgets, durable idempotency records, bounded repository and sandbox
+tools, retries, and explicit stop reasons. It has not yet run the five-task
+autonomous benchmark; that remains the milestone exit gate. See the
+[agent-loop architecture](docs/architecture/agent-loop.md) and
+[Milestone 4 progress record](docs/verification/milestone-4-progress.md).
 
 ## Product boundary
 
@@ -148,7 +158,10 @@ pnpm web:typecheck
 pnpm web:build
 ```
 
-The worker currently creates a disposable copied workspace and executes only the fixed `node --version` command. It is a walking-skeleton boundary, not a security sandbox.
+The default walking-skeleton worker path still executes only the fixed
+`node --version` command. The bounded agent loop and secure tool executor are
+implemented separately and will replace that fixed step after task objectives,
+budgets, and approval transitions are added to the durable run contract.
 
 ## License
 

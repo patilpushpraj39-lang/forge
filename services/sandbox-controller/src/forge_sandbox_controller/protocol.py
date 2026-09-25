@@ -103,6 +103,15 @@ class SandboxController(Protocol):
         limit: int = 20,
     ) -> tuple[SearchResult, ...]: ...
 
+    def read_file(
+        self,
+        sandbox_id: str,
+        path: str,
+        start_line: int = 1,
+        end_line: int | None = None,
+        max_characters: int = 20_000,
+    ) -> SearchResult: ...
+
     def dependency_neighborhood(
         self,
         sandbox_id: str,

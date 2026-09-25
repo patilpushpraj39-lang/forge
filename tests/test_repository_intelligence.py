@@ -105,11 +105,18 @@ class RepositoryIntelligenceTests(unittest.TestCase):
         text_results = repository_index.search_text("Hello")
         symbol_results = repository_index.search_symbols("Greeter")
         neighbors = repository_index.dependency_neighborhood("src/app.py")
+        file_range = repository_index.read_lines(
+            "src/app.py", start_line=3, end_line=5
+        )
 
         self.assertEqual(path_results[0].path, "src/helper.py")
         self.assertEqual(text_results[0].path, "src/helper.py")
         self.assertEqual(symbol_results[0].start_line, 3)
         self.assertEqual(neighbors[0].path, "src/helper.py")
+        self.assertEqual(file_range.path, "src/app.py")
+        self.assertEqual(file_range.start_line, 3)
+        self.assertEqual(file_range.end_line, 5)
+        self.assertIn("class Greeter", file_range.snippet)
         for result in [
             *path_results,
             *text_results,
@@ -169,6 +176,12 @@ class RepositoryIntelligenceTests(unittest.TestCase):
             results = controller.search_repository(
                 sandbox.sandbox_id, "Greeter", modes=("symbol",)
             )
+            file_range = controller.read_file(
+                sandbox.sandbox_id,
+                "src/app.py",
+                start_line=3,
+                end_line=5,
+            )
             context = controller.build_context_pack(
                 sandbox.sandbox_id, results, budget_characters=500
             )
@@ -177,6 +190,8 @@ class RepositoryIntelligenceTests(unittest.TestCase):
 
         self.assertEqual(manifest.snapshot_hash, sandbox.snapshot_hash)
         self.assertEqual(results[0].path, "src/app.py")
+        self.assertEqual(file_range.snapshot_hash, sandbox.snapshot_hash)
+        self.assertIn("class Greeter", file_range.snippet)
         self.assertEqual(len(context.items), 1)
 
 
