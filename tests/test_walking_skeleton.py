@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import sys
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
 
@@ -67,6 +70,87 @@ class WalkingSkeletonTests(unittest.TestCase):
 
         self.assertEqual(cancelled["state"], RunState.CANCELLED)
         self.assertFalse(run_once(store))
+
+    def test_expired_lease_is_recovered_by_another_worker(self) -> None:
+        store = RunStore(self.database)
+        created = store.create_run(str(self.repository))
+        first_claim = store.claim_next_run("worker-one", lease_seconds=0.05)
+        self.assertIsNotNone(first_claim)
+
+        time.sleep(0.08)
+        recovered = store.claim_next_run("worker-two", lease_seconds=1)
+
+        self.assertIsNotNone(recovered)
+        assert recovered is not None
+        self.assertEqual(recovered["run_id"], created["run_id"])
+        self.assertEqual(recovered["state"], RunState.SNAPSHOTTING)
+        self.assertEqual(recovered["attempt"], 2)
+        self.assertEqual(recovered["lease_owner"], "worker-two")
+        events = store.list_events(str(created["run_id"]))
+        self.assertEqual(events[-1]["event_type"], "lease_recovered")
+        self.assertEqual(events[-1]["payload"]["previous_worker_id"], "worker-one")
+
+    def test_active_command_is_terminated_after_cancellation(self) -> None:
+        store = RunStore(self.database)
+        created = store.create_run(str(self.repository))
+        run_id = str(created["run_id"])
+        long_command = (sys.executable, "-c", "import time; time.sleep(10)")
+        worker = threading.Thread(
+            target=run_once,
+            kwargs={
+                "store": store,
+                "worker_id": "worker-cancel",
+                "command": long_command,
+                "timeout_seconds": 5,
+                "lease_seconds": 0.3,
+            },
+            daemon=True,
+        )
+        worker.start()
+
+        deadline = time.monotonic() + 2
+        while time.monotonic() < deadline:
+            event_types = [
+                event["event_type"] for event in store.list_events(run_id)
+            ]
+            if "command_started" in event_types:
+                break
+            time.sleep(0.01)
+        else:
+            self.fail("worker did not start the command")
+
+        cancellation_started = time.monotonic()
+        store.request_cancellation(run_id)
+        worker.join(timeout=3)
+
+        self.assertFalse(worker.is_alive())
+        self.assertLess(time.monotonic() - cancellation_started, 2.5)
+        self.assertEqual(store.get_run(run_id)["state"], RunState.CANCELLED)
+        event_types = [event["event_type"] for event in store.list_events(run_id)]
+        self.assertIn("cancellation_requested", event_types)
+        self.assertIn("command_cancelled", event_types)
+        self.assertEqual(event_types[-1], "workspace_destroyed")
+
+    def test_command_timeout_fails_run_and_releases_lease(self) -> None:
+        store = RunStore(self.database)
+        created = store.create_run(str(self.repository))
+        slow_command = (sys.executable, "-c", "import time; time.sleep(2)")
+
+        self.assertTrue(
+            run_once(
+                store,
+                worker_id="worker-timeout",
+                command=slow_command,
+                timeout_seconds=0.1,
+                lease_seconds=1,
+            )
+        )
+
+        run = store.get_run(str(created["run_id"]))
+        self.assertEqual(run["state"], RunState.FAILED)
+        self.assertIsNone(run["lease_owner"])
+        events = store.list_events(str(created["run_id"]))
+        self.assertIn("command_timed_out", [event["event_type"] for event in events])
 
 
 if __name__ == "__main__":

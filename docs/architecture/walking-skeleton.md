@@ -12,7 +12,7 @@ It intentionally does not claim that the final security or persistence infrastru
 Next.js run console
   -> FastAPI POST /runs
   -> local SQLite run and event store
-  -> worker claims oldest CREATED run
+  -> worker leases oldest CREATED or recoverable active run
   -> repository copied to a temporary workspace
   -> content-derived snapshot hash recorded
   -> fixed node --version command executed with a timeout
@@ -26,6 +26,11 @@ Next.js run console
 - Event sequence numbers are monotonic and begin at one per run.
 - The worker records snapshot, command-start, command-result, state, and cleanup events.
 - A run cancelled before worker claim is not executed.
+- An expired active lease is recovered by a different worker and records the
+  ownership change as a durable event.
+- Cancellation of an active command terminates its process and reaches
+  `CANCELLED` within the bounded shutdown window.
+- Command timeout reaches `FAILED` and releases the worker lease.
 - The API and worker share only the run-store contract and persistent database file.
 - The browser can reconnect and deduplicate replayed events by event identifier.
 - The Next.js application type-checks and produces a production build.
@@ -34,7 +39,10 @@ Next.js run console
 
 ### SQLite
 
-SQLite exercises transactions, persistence, replay, and cross-process behavior without pretending to be the production database. It must be replaced by a PostgreSQL adapter with leases, row versions, and transactional outbox support before Milestone 1 is complete.
+SQLite exercises transactions, persistence, replay, leases, cancellation, and
+cross-process recovery without pretending to be the production database. It
+must be replaced by a PostgreSQL adapter with row versions and transactional
+outbox support before Milestone 1 is complete.
 
 ### Disposable copied workspace
 
@@ -47,9 +55,5 @@ The worker executes `node --version` with a ten-second timeout and capped output
 ## Remaining Milestone 1 gates
 
 - PostgreSQL-backed run and event adapter.
-- Worker lease and recovery after interruption.
-- Active-command cancellation and bounded termination.
 - Sandbox-controller protocol, even if the first backend remains local.
 - Automated live HTTP and SSE integration test in CI.
-- Browser-level verification of the run timeline.
-

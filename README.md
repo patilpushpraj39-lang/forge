@@ -10,7 +10,12 @@ Milestone 0 is complete. The product contract, architecture decisions, threat mo
 
 See [the Milestone 0 verification record](docs/verification/milestone-0.md).
 
-Milestone 1 currently has a tested local persistence adapter, a single-run worker, an SSE API, and a production-building Next.js console. The local adapter uses SQLite to exercise recovery and replay; PostgreSQL remains the required durable backend before the milestone closes. See [the walking-skeleton design](docs/architecture/walking-skeleton.md).
+Milestone 1 currently has a tested local persistence adapter, leased worker
+recovery, bounded active-command cancellation, an SSE API, and a
+production-building Next.js console that restores run history after reload. The
+local adapter uses SQLite to exercise recovery and replay; PostgreSQL remains
+the required durable backend before the milestone closes. See [the
+walking-skeleton design](docs/architecture/walking-skeleton.md).
 
 ## Product boundary
 

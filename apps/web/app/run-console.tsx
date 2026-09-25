@@ -34,12 +34,42 @@ export function RunConsole() {
   const runId = run?.run_id;
 
   useEffect(() => {
+    const restoredRunId = new URLSearchParams(window.location.search).get("run");
+    if (!restoredRunId) return;
+
+    let cancelled = false;
+    fetch(`${apiBase}/runs/${restoredRunId}`)
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`API returned ${response.status}`);
+        return (await response.json()) as Run;
+      })
+      .then((restoredRun) => {
+        if (!cancelled) {
+          setRepositoryPath(restoredRun.repository_path);
+          setRun(restoredRun);
+        }
+      })
+      .catch((caught) => {
+        if (!cancelled) {
+          setError(
+            caught instanceof Error ? caught.message : "Unable to restore run"
+          );
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!runId) return;
 
     const stream = new EventSource(`${apiBase}/runs/${runId}/events/stream?after=0`);
 
     stream.onmessage = (message) => {
       const event = JSON.parse(message.data) as RunEvent;
+      setError(null);
       setEvents((current) =>
         current.some((item) => item.event_id === event.event_id)
           ? current
@@ -74,7 +104,13 @@ export function RunConsole() {
         body: JSON.stringify({ repository_path: repositoryPath })
       });
       if (!response.ok) throw new Error(`API returned ${response.status}`);
-      setRun((await response.json()) as Run);
+      const createdRun = (await response.json()) as Run;
+      window.history.replaceState(
+        null,
+        "",
+        `?run=${encodeURIComponent(createdRun.run_id)}`
+      );
+      setRun(createdRun);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to create run");
     } finally {
