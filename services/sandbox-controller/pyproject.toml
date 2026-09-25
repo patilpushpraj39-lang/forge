@@ -4,6 +4,9 @@ version = "0.0.0"
 requires-python = ">=3.12"
 dependencies = ["forge-repo-intelligence==0.0.0"]
 
+[project.optional-dependencies]
+s3 = ["boto3>=1.35,<2"]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

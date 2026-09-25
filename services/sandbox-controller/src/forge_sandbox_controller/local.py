@@ -28,6 +28,7 @@ from forge_repo_intelligence import (
 from .artifacts import LocalArtifactStore
 from .protocol import (
     AppliedPatch,
+    ArtifactStore,
     ArtifactRef,
     CommandResult,
     CommandStatus,
@@ -379,7 +380,7 @@ class LocalSandboxController:
     will implement the same protocol in Milestone 3.
     """
 
-    def __init__(self, artifact_store: LocalArtifactStore | None = None) -> None:
+    def __init__(self, artifact_store: ArtifactStore | None = None) -> None:
         self._sandboxes: dict[str, _SandboxState] = {}
         self._indexer = RepositoryIndexer()
         self._artifact_store = artifact_store or LocalArtifactStore()

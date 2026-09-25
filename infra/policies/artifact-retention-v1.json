@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "standard": {
+    "key_prefix": "forge/artifacts/sha256/",
+    "expiration_days": 30,
+    "abort_incomplete_multipart_upload_days": 1,
+    "server_side_encryption": "AES256"
+  },
+  "release_evidence": {
+    "key_prefix": "forge/releases/",
+    "expiration": null,
+    "requires_explicit_promotion": true
+  },
+  "local_development": {
+    "path": ".state/artifacts",
+    "source_control_ignored": true,
+    "automatic_cleanup": false
+  }
+}

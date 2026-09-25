@@ -55,17 +55,21 @@ or workspace-limit decisions also kill the active container.
 
 ## Artifacts
 
-The local artifact adapter writes to a SHA-256 fan-out directory. Artifact reads
-verify the identifier, expected size, checksum, and caller-provided maximum read
-size. The worker records the snapshot artifact reference as a durable event.
+The local artifact adapter writes to a SHA-256 fan-out directory. The
+S3-compatible adapter uses the same SHA-256 key layout, includes checksum and
+size metadata, requests server-side encryption, and tags standard-retention
+objects. Artifact reads verify the identifier, expected size, checksum, and
+caller-provided maximum read size. The worker records the snapshot artifact
+reference as a durable event.
 
-This interface is intentionally compatible with a later S3-compatible adapter;
-the current local implementation is sufficient for single-host development.
+[`artifact-retention-v1.json`](../../infra/policies/artifact-retention-v1.json)
+keeps standard run artifacts for 30 days and reserves a separate non-expiring
+prefix for explicitly promoted release evidence. Deployments apply the generated
+S3 lifecycle configuration to the artifact bucket.
 
 ## Remaining hardening
 
 - Run the Docker abuse suite in GitHub Actions and record the image digest.
-- Add an object-store adapter and retention policy.
 - Add platform-specific seccomp/AppArmor profiles where the deployment supports
   them rather than relying only on Docker defaults.
 - Measure realistic language-image disk and memory budgets before public use.

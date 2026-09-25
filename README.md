@@ -41,7 +41,8 @@ deterministic content-addressed snapshots, validates and applies bounded unified
 patches, generates reproducible diff artifacts, and reconstructs clean
 verification sandboxes. A Docker backend with default-deny networking and
 explicit CPU, memory, process, filesystem, output, and time limits is ready for
-its first GitHub abuse-test run. See the
+its first GitHub abuse-test run. Content-addressed artifacts can use a local
+store or an S3-compatible encrypted bucket with explicit retention. See the
 [sandbox architecture](docs/architecture/sandbox.md) and
 [Milestone 3 progress record](docs/verification/milestone-3-progress.md).
 

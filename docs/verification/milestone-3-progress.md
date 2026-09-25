@@ -18,8 +18,11 @@
 | Captured output never exceeds configured cap | Pass |
 | Immutable Docker image requirement | Unit-tested |
 | Docker hardening flags match machine-readable policy | Unit-tested |
+| S3-compatible content-addressed artifact adapter | Pass with a deterministic fake service |
+| Artifact checksum, read-cap, and tamper checks | Pass |
+| Generated S3 lifecycle matches retention policy | Pass |
 
-The local suite currently collects 28 tests. Twenty-one pass, four PostgreSQL tests
+The local suite currently collects 32 tests. Twenty-five pass, four PostgreSQL tests
 skip without a local database, and three Docker abuse tests skip without a local
 Docker runtime.
 
@@ -37,5 +40,4 @@ repository digest, then exercises:
 - memory-bound termination.
 
 The job has a ten-minute outer timeout. Each individual abuse command has an
-eight-second bound. Milestone 3 remains open until this job passes and the
-remaining object-store/retention decision is recorded.
+eight-second bound. Milestone 3 remains open until this job passes.

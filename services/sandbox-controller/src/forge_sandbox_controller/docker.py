@@ -8,9 +8,9 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from .artifacts import LocalArtifactStore
 from .local import LocalSandboxController, _run_bounded_process
 from .protocol import (
+    ArtifactStore,
     ArtifactRef,
     CommandResult,
     CommandStatus,
@@ -121,7 +121,7 @@ class DockerSandboxController(LocalSandboxController):
         *,
         policy: ContainerPolicy | None = None,
         docker_binary: str = "docker",
-        artifact_store: LocalArtifactStore | None = None,
+        artifact_store: ArtifactStore | None = None,
     ) -> None:
         if not IMAGE_DIGEST_PATTERN.fullmatch(image):
             raise ValueError("sandbox image must be pinned by SHA-256 digest")

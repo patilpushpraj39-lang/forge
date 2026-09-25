@@ -80,6 +80,14 @@ class InvalidPatchError(ValueError):
     pass
 
 
+class ArtifactStore(Protocol):
+    def put_bytes(self, content: bytes, media_type: str) -> ArtifactRef: ...
+
+    def put_file(self, source: Path, media_type: str) -> ArtifactRef: ...
+
+    def read_bytes(self, reference: ArtifactRef, max_bytes: int) -> bytes: ...
+
+
 class SandboxController(Protocol):
     def create(self, repository_path: Path) -> SandboxHandle: ...
 

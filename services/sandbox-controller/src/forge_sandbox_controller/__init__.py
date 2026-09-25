@@ -13,6 +13,7 @@ from .protocol import (
     AppliedPatch,
     ArtifactNotFoundError,
     ArtifactRef,
+    ArtifactStore,
     CommandResult,
     CommandStatus,
     InvalidPatchError,
@@ -21,11 +22,13 @@ from .protocol import (
     SandboxHandle,
     SandboxNotFoundError,
 )
+from .s3_artifacts import S3ArtifactStore
 
 __all__ = [
     "AppliedPatch",
     "ArtifactNotFoundError",
     "ArtifactRef",
+    "ArtifactStore",
     "CommandResult",
     "CommandStatus",
     "ContainerPolicy",
@@ -36,6 +39,7 @@ __all__ = [
     "SandboxController",
     "SandboxHandle",
     "SandboxNotFoundError",
+    "S3ArtifactStore",
     "PatchArtifact",
     "build_docker_run_command",
     "create_sandbox_controller",

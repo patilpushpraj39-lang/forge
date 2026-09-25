@@ -18,3 +18,7 @@ minimal environment.
 Both backends support deterministic content-addressed snapshots, safe unified
 patch application, diff artifacts, and clean snapshot-plus-patch replay. See
 [the sandbox architecture](../../docs/architecture/sandbox.md).
+
+Artifacts can use the local SHA-256 store or an S3-compatible bucket. The S3
+adapter verifies content on read, requests server-side encryption, and produces
+the lifecycle configuration defined by the repository retention policy.
