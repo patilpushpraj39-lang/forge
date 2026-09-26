@@ -164,7 +164,7 @@ class PostgresIntegrationTests(unittest.TestCase):
     def test_postgres_patch_bound_approval_and_publication_outbox(self) -> None:
         import psycopg
 
-        from forge_agent_core import RepositoryTarget, RunState
+        from forge_agent_core import RepositoryTarget, RunState, SourceSnapshot
 
         created = self.store.create_run(
             str(self.repository),
@@ -172,8 +172,12 @@ class PostgresIntegrationTests(unittest.TestCase):
             repository=RepositoryTarget(
                 "octo-org", "fixture", 42, "main", "c" * 40
             ),
+            source_snapshot=SourceSnapshot("d" * 64, 1234),
         )
         run_id = str(created["run_id"])
+        stored = self.store.get_run(run_id)
+        self.assertEqual(stored["source_snapshot_sha256"], "d" * 64)
+        self.assertEqual(stored["source_snapshot_size_bytes"], 1234)
         self.store.claim_next_run("postgres-approval-worker")
         self.store.transition(
             run_id,

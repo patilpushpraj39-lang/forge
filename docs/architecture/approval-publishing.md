@@ -26,6 +26,14 @@ key reused for different input is rejected.
 ## State and data flow
 
 ```text
+GitHub App catalog
+  -> active installation selected
+  -> authorized repository selected
+  -> branch resolved once to an exact commit
+  -> tree and blobs verified under hard size/path limits
+  -> content-addressed source snapshot captured
+  -> run created against that immutable snapshot
+
 EVALUATING
   -> AWAITING_APPROVAL
   -> approval recorded (run state unchanged)
@@ -59,18 +67,21 @@ checks, and exact diff before enabling the approval action.
 
 ## GitHub authority
 
-The production publisher signs a short-lived GitHub App JWT and requests an
-installation token limited to metadata read, contents write, and pull-request
-write. The token is kept only in memory and refreshed before expiry. Immediately
-before creating the pull request, the publisher rechecks that the selected base
-branch still points to the approved base commit.
+The API signs a short-lived GitHub App JWT only on the server. Catalog discovery
+uses an installation token limited to metadata and contents read. Source
+ingestion rejects archived repositories, unsafe Windows paths, case collisions,
+symbolic links, submodules, truncated recursive trees, invalid Git object hashes,
+and configured file/count/total-size limits.
+
+The production publisher independently requests an installation token limited
+to metadata read, contents write, and pull-request write. Tokens are kept only
+in memory and refreshed before expiry. Immediately before creating the pull
+request, the publisher rechecks that the selected base branch still points to
+the approved base commit.
 
 ## Remaining production gates
 
 - Replace the local reviewer claim with authenticated identity and authorization.
-- Resolve installations and repositories through a server-side GitHub catalog
-  rather than manual IDs.
-- Ingest the source snapshot directly from the selected immutable GitHub commit.
 - Execute the PostgreSQL migration and publication contracts in public CI.
-- Run a controlled live GitHub App test that creates exactly one pull request,
-  including an injected ambiguous-response retry.
+- Run a controlled live GitHub App test covering catalog discovery, immutable
+  ingestion, exactly one pull request, and an injected ambiguous-response retry.

@@ -45,6 +45,7 @@ from .run_contract import (
     run_budget_payload,
     validate_run_budgets,
 )
+from .source_contract import SourceSnapshot
 
 
 class MigrationChecksumError(RuntimeError):
@@ -132,6 +133,7 @@ class PostgresRunStore:
         objective: str = DEFAULT_RUN_OBJECTIVE,
         budgets: BudgetLimits | None = None,
         repository: RepositoryTarget | None = None,
+        source_snapshot: SourceSnapshot | None = None,
     ) -> dict[str, Any]:
         objective = normalize_objective(objective)
         budgets = validate_run_budgets(budgets or DEFAULT_RUN_BUDGETS)
@@ -154,10 +156,13 @@ class PostgresRunStore:
                     installation_id,
                     base_ref,
                     base_sha,
+                    source_snapshot_sha256,
+                    source_snapshot_size_bytes,
+                    source_snapshot_media_type,
                     state
                 ) values (
                     %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                    %s, %s, %s, %s, %s, %s
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s
                 )
                 """,
                 (
@@ -175,6 +180,17 @@ class PostgresRunStore:
                     repository.installation_id if repository is not None else None,
                     repository.base_ref if repository is not None else None,
                     repository.base_sha if repository is not None else None,
+                    source_snapshot.sha256 if source_snapshot is not None else None,
+                    (
+                        source_snapshot.size_bytes
+                        if source_snapshot is not None
+                        else None
+                    ),
+                    (
+                        source_snapshot.media_type
+                        if source_snapshot is not None
+                        else None
+                    ),
                     RunState.CREATED,
                 ),
             )
@@ -189,6 +205,11 @@ class PostgresRunStore:
                     "budgets": run_budget_payload(budgets),
                     "repository": (
                         repository.to_dict() if repository is not None else None
+                    ),
+                    "source_snapshot": (
+                        source_snapshot.to_dict()
+                        if source_snapshot is not None
+                        else None
                     ),
                 },
             )

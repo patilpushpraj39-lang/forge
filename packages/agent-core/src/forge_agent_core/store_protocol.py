@@ -6,6 +6,7 @@ from .model_runtime import BudgetLimits
 from .publication_contract import ApprovalAction, RepositoryTarget
 from .run_contract import DEFAULT_RUN_OBJECTIVE
 from .run_store import RunState
+from .source_contract import SourceSnapshot
 
 
 class RunStoreProtocol(Protocol):
@@ -15,6 +16,7 @@ class RunStoreProtocol(Protocol):
         objective: str = DEFAULT_RUN_OBJECTIVE,
         budgets: BudgetLimits | None = None,
         repository: RepositoryTarget | None = None,
+        source_snapshot: SourceSnapshot | None = None,
     ) -> dict[str, Any]: ...
 
     def get_run(self, run_id: str) -> dict[str, Any]: ...

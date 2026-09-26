@@ -156,6 +156,7 @@ h1 {
 
 input,
 textarea,
+select,
 button {
   border-radius: 10px;
   border: 1px solid #38424e;
@@ -163,12 +164,25 @@ button {
 }
 
 input,
-textarea {
+textarea,
+select {
   flex: 1;
   min-width: 0;
   padding: 12px 14px;
   background: #090b0e;
   color: inherit;
+}
+
+select {
+  width: 100%;
+}
+
+.catalog-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #91a0ae;
+  font-size: 0.8rem;
+  line-height: 1.5;
 }
 
 textarea {
@@ -215,6 +229,7 @@ button:disabled {
 button:focus-visible,
 input:focus-visible,
 textarea:focus-visible,
+select:focus-visible,
 summary:focus-visible,
 a:focus-visible {
   outline: 2px solid #8bd3f7;

@@ -8,6 +8,11 @@ from pydantic import ValidationError
 
 import forge_api.main as api_main
 from forge_agent_core import RunState, RunStore
+from forge_publisher import (
+    InstallationSummary,
+    MaterializedRepository,
+    RepositorySummary,
+)
 from forge_sandbox_controller import LocalArtifactStore, LocalSandboxController
 
 
@@ -19,14 +24,17 @@ class ApiRunContractTests(unittest.TestCase):
         self.repository.mkdir()
         self.original_store = api_main.store
         self.original_controller = api_main.controller
+        self.original_github_catalog = api_main.github_catalog
         api_main.store = RunStore(self.root / "forge.db")
         api_main.controller = LocalSandboxController(
             LocalArtifactStore(self.root / "artifacts")
         )
+        api_main.github_catalog = None
 
     def tearDown(self) -> None:
         api_main.store = self.original_store
         api_main.controller = self.original_controller
+        api_main.github_catalog = self.original_github_catalog
         self.temporary_directory.cleanup()
 
     def test_api_persists_normalized_objective_and_default_budgets(self) -> None:
@@ -200,6 +208,64 @@ class ApiRunContractTests(unittest.TestCase):
         self.assertEqual(review["patch_hash"], patch_artifact.sha256)
         self.assertEqual(review["changed_paths"], ["README.md"])
         self.assertEqual(review["repository"]["base_sha"], "c" * 40)
+
+    def test_github_catalog_creates_run_from_immutable_snapshot(self) -> None:
+        class FakeCatalog:
+            def list_installations(self):
+                return (
+                    InstallationSummary(42, "octo-org", "Organization", "selected"),
+                )
+
+            def list_repositories(self, installation_id):
+                self.installation_id = installation_id
+                return (
+                    RepositorySummary(
+                        "octo-org", "fixture", "octo-org/fixture", "main", True
+                    ),
+                )
+
+            def materialize_selected_repository(
+                self, installation_id, owner, name, base_ref, destination
+            ):
+                destination.mkdir()
+                (destination / "README.md").write_text(
+                    "immutable source\n", encoding="utf-8"
+                )
+                return MaterializedRepository(
+                    installation_id,
+                    owner,
+                    name,
+                    base_ref,
+                    "a" * 40,
+                    "b" * 40,
+                    1,
+                    17,
+                    destination,
+                )
+
+        api_main.github_catalog = FakeCatalog()
+
+        installations = api_main.list_github_installations()
+        repositories = api_main.list_github_repositories(42)
+        created = api_main.create_github_run(
+            api_main.CreateGitHubRunRequest(
+                installation_id=42,
+                owner="octo-org",
+                name="fixture",
+                base_ref="main",
+                objective="Inspect the immutable source.",
+            )
+        )
+
+        self.assertEqual(installations[0]["account_login"], "octo-org")
+        self.assertEqual(repositories[0]["full_name"], "octo-org/fixture")
+        self.assertEqual(created["base_sha"], "a" * 40)
+        self.assertEqual(len(created["source_snapshot_sha256"]), 64)
+        self.assertEqual(
+            created["repository_path"], "github://octo-org/fixture@" + "a" * 40
+        )
+        events = api_main.store.list_events(str(created["run_id"]))
+        self.assertEqual(events[-1]["event_type"], "github_source_ingested")
 
 
 if __name__ == "__main__":

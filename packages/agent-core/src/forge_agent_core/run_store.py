@@ -32,6 +32,7 @@ from .run_contract import (
     run_budget_payload,
     validate_run_budgets,
 )
+from .source_contract import SourceSnapshot
 
 
 class RunState(StrEnum):
@@ -134,6 +135,9 @@ class RunStore:
                     base_sha TEXT,
                     evaluated_patch_hash TEXT,
                     evaluation_verdict_hash TEXT,
+                    source_snapshot_sha256 TEXT,
+                    source_snapshot_size_bytes INTEGER,
+                    source_snapshot_media_type TEXT,
                     state TEXT NOT NULL,
                     attempt INTEGER NOT NULL DEFAULT 0,
                     lease_owner TEXT,
@@ -238,6 +242,9 @@ class RunStore:
             "base_sha": "TEXT",
             "evaluated_patch_hash": "TEXT",
             "evaluation_verdict_hash": "TEXT",
+            "source_snapshot_sha256": "TEXT",
+            "source_snapshot_size_bytes": "INTEGER",
+            "source_snapshot_media_type": "TEXT",
         }
         for column, definition in additions.items():
             if column not in existing:
@@ -271,6 +278,7 @@ class RunStore:
         objective: str = DEFAULT_RUN_OBJECTIVE,
         budgets: BudgetLimits | None = None,
         repository: RepositoryTarget | None = None,
+        source_snapshot: SourceSnapshot | None = None,
     ) -> dict[str, Any]:
         objective = normalize_objective(objective)
         budgets = validate_run_budgets(budgets or DEFAULT_RUN_BUDGETS)
@@ -287,8 +295,13 @@ class RunStore:
                     budget_tool_calls, budget_patch_attempts,
                     repository_owner, repository_name, installation_id,
                     base_ref, base_sha,
+                    source_snapshot_sha256, source_snapshot_size_bytes,
+                    source_snapshot_media_type,
                     state, attempt, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
+                ) VALUES (
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    0, ?, ?
+                )
                 """,
                 (
                     run_id,
@@ -305,6 +318,17 @@ class RunStore:
                     repository.installation_id if repository is not None else None,
                     repository.base_ref if repository is not None else None,
                     repository.base_sha if repository is not None else None,
+                    source_snapshot.sha256 if source_snapshot is not None else None,
+                    (
+                        source_snapshot.size_bytes
+                        if source_snapshot is not None
+                        else None
+                    ),
+                    (
+                        source_snapshot.media_type
+                        if source_snapshot is not None
+                        else None
+                    ),
                     RunState.CREATED,
                     created_at,
                     created_at,
@@ -321,6 +345,11 @@ class RunStore:
                     "budgets": run_budget_payload(budgets),
                     "repository": (
                         repository.to_dict() if repository is not None else None
+                    ),
+                    "source_snapshot": (
+                        source_snapshot.to_dict()
+                        if source_snapshot is not None
+                        else None
                     ),
                 },
             )

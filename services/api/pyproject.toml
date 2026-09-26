@@ -5,6 +5,7 @@ requires-python = ">=3.12"
 dependencies = [
   "fastapi>=0.116,<1",
   "forge-agent-core==0.0.0",
+  "forge-publisher==0.0.0",
   "forge-sandbox-controller==0.0.0",
   "uvicorn[standard]>=0.35,<1",
 ]

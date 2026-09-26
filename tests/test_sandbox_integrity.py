@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import subprocess
 import sys
 import tempfile
 import time
@@ -241,6 +242,29 @@ class SandboxIntegrityTests(unittest.TestCase):
 
         self.assertEqual(applied.changed_paths, ("pricing.ts",))
         self.assertEqual(diff.changed_paths, ("pricing.ts",))
+
+    def test_patch_application_cannot_discover_a_parent_git_repository(self) -> None:
+        parent_repository = self.root / "parent"
+        parent_repository.mkdir()
+        subprocess.run(
+            ["git", "init", "--quiet"],
+            cwd=parent_repository,
+            check=True,
+        )
+        previous_tempdir = tempfile.tempdir
+        tempfile.tempdir = str(parent_repository)
+        sandbox = None
+        try:
+            sandbox = self.controller.create(self.repository)
+            self.controller.apply_patch(sandbox.sandbox_id, self.patch())
+            diff = self.controller.diff(sandbox.sandbox_id)
+        finally:
+            tempfile.tempdir = previous_tempdir
+            if sandbox is not None:
+                self.controller.destroy(sandbox.sandbox_id)
+
+        self.assertEqual(diff.changed_paths, ("app.py",))
+        self.assertFalse((parent_repository / "app.py").exists())
 
 
 if __name__ == "__main__":

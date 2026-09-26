@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import tempfile
 from collections.abc import AsyncIterator
 from pathlib import Path
 
@@ -18,7 +19,16 @@ from forge_agent_core import (
     PublicationError,
     RepositoryTarget,
     RunNotFoundError,
+    SourceSnapshot,
     create_run_store,
+)
+from forge_publisher import (
+    GitHubAppInstallationTokenProvider,
+    GitHubCatalog,
+    PublisherConflictError,
+    PublisherPermissionError,
+    PublisherTransientError,
+    UrllibGitHubTransport,
 )
 from forge_sandbox_controller import (
     ArtifactNotFoundError,
@@ -29,6 +39,28 @@ from forge_sandbox_controller import (
 
 store = create_run_store()
 controller = create_sandbox_controller()
+
+
+def _configured_github_catalog() -> GitHubCatalog | None:
+    client_id = os.environ.get("FORGE_GITHUB_APP_CLIENT_ID")
+    private_key_path = os.environ.get("FORGE_GITHUB_APP_PRIVATE_KEY_PATH")
+    if not client_id and not private_key_path:
+        return None
+    if not client_id or not private_key_path:
+        raise RuntimeError("GitHub App client ID and private key path must be set together")
+    key_path = Path(private_key_path).resolve()
+    if not key_path.is_file():
+        raise RuntimeError("GitHub App private key file does not exist")
+    transport = UrllibGitHubTransport()
+    tokens = GitHubAppInstallationTokenProvider(
+        client_id,
+        key_path.read_text(encoding="utf-8"),
+        transport,
+    )
+    return GitHubCatalog(tokens, transport)
+
+
+github_catalog = _configured_github_catalog()
 app = FastAPI(title="Forge API", version="0.1.0-dev")
 app.add_middleware(
     CORSMiddleware,
@@ -97,9 +129,127 @@ class PublishRunRequest(BaseModel):
     )
 
 
+class CreateGitHubRunRequest(BaseModel):
+    installation_id: int = Field(gt=0)
+    owner: str = Field(pattern=r"^[A-Za-z0-9_.-]{1,100}$")
+    name: str = Field(pattern=r"^[A-Za-z0-9_.-]{1,100}$")
+    base_ref: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$")
+    objective: str = Field(min_length=1, max_length=10_000)
+    budgets: RunBudgetRequest = Field(default_factory=RunBudgetRequest)
+
+    @field_validator("objective")
+    @classmethod
+    def objective_must_contain_text(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("objective is required")
+        return normalized
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+def _require_github_catalog() -> GitHubCatalog:
+    if github_catalog is None:
+        raise HTTPException(status_code=503, detail="GitHub App is not configured")
+    return github_catalog
+
+
+def _github_http_error(error: Exception) -> HTTPException:
+    if isinstance(error, PublisherTransientError):
+        return HTTPException(status_code=503, detail=str(error))
+    if isinstance(error, PublisherPermissionError):
+        return HTTPException(status_code=403, detail=str(error))
+    return HTTPException(status_code=422, detail=str(error))
+
+
+@app.get("/github/installations")
+def list_github_installations() -> list[dict[str, object]]:
+    try:
+        return [item.to_dict() for item in _require_github_catalog().list_installations()]
+    except (
+        PublisherTransientError,
+        PublisherPermissionError,
+        PublisherConflictError,
+    ) as error:
+        raise _github_http_error(error) from error
+
+
+@app.get("/github/installations/{installation_id}/repositories")
+def list_github_repositories(installation_id: int) -> list[dict[str, object]]:
+    try:
+        return [
+            item.to_dict()
+            for item in _require_github_catalog().list_repositories(installation_id)
+        ]
+    except (
+        PublisherTransientError,
+        PublisherPermissionError,
+        PublisherConflictError,
+        ValueError,
+    ) as error:
+        raise _github_http_error(error) from error
+
+
+@app.post("/github/runs", status_code=201)
+def create_github_run(request: CreateGitHubRunRequest) -> dict[str, object]:
+    catalog = _require_github_catalog()
+    sandbox_id: str | None = None
+    try:
+        with tempfile.TemporaryDirectory(prefix="forge-github-source-") as temporary:
+            materialized = catalog.materialize_selected_repository(
+                request.installation_id,
+                request.owner,
+                request.name,
+                request.base_ref,
+                Path(temporary) / "repository",
+            )
+            captured = controller.create(materialized.path)
+            sandbox_id = captured.sandbox_id
+            if captured.snapshot_artifact is None:
+                raise RuntimeError("sandbox controller did not persist the source snapshot")
+            source_snapshot = SourceSnapshot(**captured.snapshot_artifact.to_dict())
+            controller.destroy(captured.sandbox_id)
+            sandbox_id = None
+        target = RepositoryTarget(
+            materialized.owner,
+            materialized.name,
+            materialized.installation_id,
+            materialized.base_ref,
+            materialized.base_sha,
+        )
+        run = store.create_run(
+            f"github://{materialized.owner}/{materialized.name}@{materialized.base_sha}",
+            request.objective,
+            request.budgets.to_limits(),
+            target,
+            source_snapshot,
+        )
+        store.append_event(
+            str(run["run_id"]),
+            "github_source_ingested",
+            "github-gateway",
+            {
+                "repository": target.to_dict(),
+                "tree_sha": materialized.tree_sha,
+                "file_count": materialized.file_count,
+                "total_bytes": materialized.total_bytes,
+                "snapshot_artifact": source_snapshot.to_dict(),
+            },
+        )
+        return store.get_run(str(run["run_id"]))
+    except (
+        PublisherTransientError,
+        PublisherPermissionError,
+        PublisherConflictError,
+        ValueError,
+    ) as error:
+        raise _github_http_error(error) from error
+    finally:
+        if sandbox_id is not None:
+            controller.destroy(sandbox_id)
 
 
 @app.post("/runs", status_code=201)

@@ -91,13 +91,40 @@ class GitHubAppInstallationTokenProvider:
         self.transport = transport or UrllibGitHubTransport()
         self.clock = clock or (lambda: datetime.now(UTC))
         self.signer = signer or _rsa_sha256_sign
-        self.cache: dict[int, tuple[str, datetime]] = {}
+        self.cache: dict[tuple[int, str], tuple[str, datetime]] = {}
 
     def token_for(self, installation_id: int) -> str:
+        return self._token_for_permissions(
+            installation_id,
+            {
+                "contents": "write",
+                "pull_requests": "write",
+                "metadata": "read",
+            },
+            "write",
+        )
+
+    def read_token_for(self, installation_id: int) -> str:
+        return self._token_for_permissions(
+            installation_id,
+            {"contents": "read", "metadata": "read"},
+            "read",
+        )
+
+    def app_token(self) -> str:
+        return self._app_jwt(self.clock())
+
+    def _token_for_permissions(
+        self,
+        installation_id: int,
+        permissions: dict[str, str],
+        cache_scope: str,
+    ) -> str:
         if installation_id <= 0:
             raise ValueError("installation_id must be positive")
         now = self.clock()
-        cached = self.cache.get(installation_id)
+        cache_key = (installation_id, cache_scope)
+        cached = self.cache.get(cache_key)
         if cached is not None and cached[1] - now > timedelta(minutes=5):
             return cached[0]
         jwt = self._app_jwt(now)
@@ -105,13 +132,7 @@ class GitHubAppInstallationTokenProvider:
             "POST",
             f"/app/installations/{installation_id}/access_tokens",
             jwt,
-            body={
-                "permissions": {
-                    "contents": "write",
-                    "pull_requests": "write",
-                    "metadata": "read",
-                }
-            },
+            body={"permissions": permissions},
         )
         if response.status != 201:
             message = _error_message(response.data)
@@ -134,7 +155,7 @@ class GitHubAppInstallationTokenProvider:
             raise PublisherTransientError(
                 "installation token expiry is invalid"
             ) from error
-        self.cache[installation_id] = (token, expires_at)
+        self.cache[cache_key] = (token, expires_at)
         return token
 
     def _app_jwt(self, now: datetime) -> str:
@@ -164,6 +185,7 @@ class UrllibGitHubTransport:
         base_url: str = "https://api.github.com",
         api_version: str = "2026-03-10",
         timeout_seconds: float = 15,
+        max_response_bytes: int = 10_000_000,
     ) -> None:
         parsed = urllib.parse.urlparse(base_url)
         if parsed.scheme != "https" or not parsed.netloc:
@@ -171,6 +193,9 @@ class UrllibGitHubTransport:
         self.base_url = base_url.rstrip("/")
         self.api_version = api_version
         self.timeout_seconds = timeout_seconds
+        if max_response_bytes <= 0 or max_response_bytes > 20_000_000:
+            raise ValueError("GitHub response limit is invalid")
+        self.max_response_bytes = max_response_bytes
         self.opener = urllib.request.build_opener(_NoRedirect())
 
     def request(
@@ -209,8 +234,8 @@ class UrllibGitHubTransport:
         except (OSError, TimeoutError) as error:
             raise PublisherTransientError(str(error)) from error
         with response:
-            content = response.read(1_000_001)
-            if len(content) > 1_000_000:
+            content = response.read(self.max_response_bytes + 1)
+            if len(content) > self.max_response_bytes:
                 raise PublisherTransientError("GitHub response exceeded limit")
             try:
                 data = json.loads(content) if content else None

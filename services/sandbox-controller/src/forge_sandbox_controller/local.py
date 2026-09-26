@@ -547,12 +547,30 @@ class LocalSandboxController:
         if expected_sha256 is not None and patch_hash != expected_sha256:
             raise InvalidPatchError("patch checksum does not match expectation")
         state = self._require_sandbox(sandbox_id)
+        git_environment = os.environ.copy()
+        for variable in (
+            "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+            "GIT_COMMON_DIR",
+            "GIT_DIR",
+            "GIT_INDEX_FILE",
+            "GIT_OBJECT_DIRECTORY",
+            "GIT_WORK_TREE",
+        ):
+            git_environment.pop(variable, None)
+        git_environment["GIT_CEILING_DIRECTORIES"] = state.root.resolve().as_posix()
         check = subprocess.run(
-            ["git", "apply", "--check", "-"],
+            [
+                "git",
+                "apply",
+                "--no-index",
+                "--check",
+                "-",
+            ],
             cwd=state.workspace,
             input=patch,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
+            env=git_environment,
             timeout=10,
             check=False,
         )
@@ -561,11 +579,17 @@ class LocalSandboxController:
                 check.stdout.decode("utf-8", errors="replace")[:2048]
             )
         applied = subprocess.run(
-            ["git", "apply", "-"],
+            [
+                "git",
+                "apply",
+                "--no-index",
+                "-",
+            ],
             cwd=state.workspace,
             input=patch,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
+            env=git_environment,
             timeout=10,
             check=False,
         )

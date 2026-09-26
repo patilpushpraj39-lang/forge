@@ -74,13 +74,16 @@ and [Milestone 5 verification](docs/verification/milestone-5.md).
 
 Milestone 6 now has a patch-bound human approval contract, a review API and
 interface, durable publication jobs with leases and delayed retries, and a
-GitHub App publisher. The publisher replays the approved artifact, rechecks the
-base commit before any write, creates a deterministic branch and commit, and
-recovers an existing pull request after ambiguous retries. Local contract tests
-prove stale approvals cannot publish and retries create at most one pull
-request. Live GitHub App proof, authenticated reviewer identity, immutable
-GitHub snapshot ingestion, and public PostgreSQL CI evidence remain before the
-milestone is complete. See the [approval and publishing architecture](docs/architecture/approval-publishing.md)
+GitHub App publisher. A server-side catalog lists authorized installations and
+repositories, resolves a selected branch to one exact commit, verifies its Git
+tree and blobs, and captures a content-addressed source snapshot before a run
+exists. The publisher replays the approved artifact, rechecks the base commit
+before any write, creates a deterministic branch and commit, and recovers an
+existing pull request after ambiguous retries. Local contract tests prove stale
+approvals cannot publish and retries create at most one pull request. Live
+GitHub App proof, authenticated reviewer identity, and public PostgreSQL CI
+evidence remain before the milestone is complete. See the
+[approval and publishing architecture](docs/architecture/approval-publishing.md)
 and [Milestone 6 progress record](docs/verification/milestone-6-progress.md).
 
 ## Product boundary

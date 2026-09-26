@@ -27,6 +27,9 @@
 | Resource exhaustion | Fork bomb or infinite output | CPU, memory, PID, disk, output, and time caps | Bounded termination tests |
 | Secret exfiltration | Test reads API key or metadata service | No control-plane secrets, denied egress, redacted environment | Secret-canary tests |
 | Prompt injection | Source file asks model to ignore policy | Policy enforced outside model; repository text treated as data | Tool-policy denial tests |
+| Source substitution | Branch moves or Git response is tampered with after selection | Resolve once to an exact commit, verify tree/blob hashes, persist content-addressed snapshot | Immutable-ingestion and snapshot-replay tests |
+| Malicious Git tree | Repository uses traversal, case collision, link, submodule, or oversized content | Canonical path checks, link/submodule denial, hard file/count/size limits | Catalog rejection tests |
+| Parent checkout discovery | Patch tool treats a surrounding checkout as the sandbox repository | Clear Git overrides and stop discovery at the sandbox root | Nested-repository patch test |
 | Unauthorized write | Run pushes without approval | Patch-hash approval, outbox, GitHub permission check | Integration test |
 | Stale approval | Patch changes after approval | Approval binds repository, base SHA, patch SHA, action, and expiry | Mutation test |
 | Duplicate side effect | Retried publish creates two PRs | Stable idempotency key and stored GitHub response | Retry test |

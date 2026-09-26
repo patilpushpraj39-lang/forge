@@ -44,6 +44,7 @@ from .run_contract import (
     validate_run_budgets,
 )
 from .run_store import RunNotFoundError, RunState, RunStore
+from .source_contract import SNAPSHOT_MEDIA_TYPE, SourceSnapshot
 from .store_factory import create_run_store
 from .store_protocol import RunStoreProtocol
 from .tool_policy import ToolPolicyError, validate_tool_call, validate_tool_specs
@@ -79,6 +80,8 @@ __all__ = [
     "RunStore",
     "RunStoreProtocol",
     "RepositoryTarget",
+    "SNAPSHOT_MEDIA_TYPE",
+    "SourceSnapshot",
     "SqliteIdempotencyLedger",
     "StopReason",
     "TokenUsage",

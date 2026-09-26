@@ -62,6 +62,21 @@ type Publication = {
   github_pull_request_url?: string | null;
 };
 
+type GitHubInstallation = {
+  installation_id: number;
+  account_login: string;
+  account_type: string;
+  repository_selection: string;
+};
+
+type GitHubRepository = {
+  owner: string;
+  name: string;
+  full_name: string;
+  default_branch: string;
+  private: boolean;
+};
+
 const apiBase = process.env.NEXT_PUBLIC_FORGE_API_URL ?? "http://localhost:8000";
 const terminalStates = new Set(["COMPLETED", "FAILED", "CANCELLED"]);
 
@@ -85,11 +100,12 @@ export function RunConsole() {
   const [repositoryPath, setRepositoryPath] = useState("");
   const [objective, setObjective] = useState("");
   const [publishToGitHub, setPublishToGitHub] = useState(false);
-  const [owner, setOwner] = useState("");
-  const [name, setName] = useState("");
+  const [installations, setInstallations] = useState<GitHubInstallation[]>([]);
+  const [repositories, setRepositories] = useState<GitHubRepository[]>([]);
   const [installationId, setInstallationId] = useState("");
+  const [repositoryName, setRepositoryName] = useState("");
   const [baseRef, setBaseRef] = useState("main");
-  const [baseSha, setBaseSha] = useState("");
+  const [catalogBusy, setCatalogBusy] = useState(false);
   const [run, setRun] = useState<Run | null>(null);
   const [events, setEvents] = useState<RunEvent[]>([]);
   const [review, setReview] = useState<Review | null>(null);
@@ -114,6 +130,9 @@ export function RunConsole() {
     run && !terminalStates.has(run.state) && run.state !== "PUBLISHING"
   );
   const eventSummary = useMemo(() => [...events].reverse().slice(0, 8), [events]);
+  const selectedRepository = repositories.find(
+    (repository) => repository.full_name === repositoryName
+  );
 
   useEffect(() => {
     const restoredRunId = new URLSearchParams(window.location.search).get("run");
@@ -137,6 +156,62 @@ export function RunConsole() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!publishToGitHub || installations.length > 0) return;
+    let cancelled = false;
+    setError(null);
+    setCatalogBusy(true);
+    fetch(`${apiBase}/github/installations`)
+      .then((response) => responseJson<GitHubInstallation[]>(response))
+      .then((items) => {
+        if (cancelled) return;
+        setInstallations(items);
+        if (items.length > 0) setInstallationId(String(items[0].installation_id));
+      })
+      .catch((caught: unknown) => {
+        if (!cancelled) {
+          setError(caught instanceof Error ? caught.message : "Unable to load GitHub installations");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setCatalogBusy(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [publishToGitHub, installations.length]);
+
+  useEffect(() => {
+    if (!publishToGitHub || !installationId) {
+      setRepositories([]);
+      setRepositoryName("");
+      return;
+    }
+    let cancelled = false;
+    setError(null);
+    setCatalogBusy(true);
+    fetch(`${apiBase}/github/installations/${installationId}/repositories`)
+      .then((response) => responseJson<GitHubRepository[]>(response))
+      .then((items) => {
+        if (cancelled) return;
+        setRepositories(items);
+        const first = items[0];
+        setRepositoryName(first?.full_name ?? "");
+        setBaseRef(first?.default_branch ?? "main");
+      })
+      .catch((caught: unknown) => {
+        if (!cancelled) {
+          setError(caught instanceof Error ? caught.message : "Unable to load GitHub repositories");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setCatalogBusy(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [publishToGitHub, installationId]);
 
   useEffect(() => {
     if (!runId) return;
@@ -201,23 +276,23 @@ export function RunConsole() {
     setApprovalRequestKey(null);
     setPublicationRequestKey(null);
     try {
-      const githubRepository = publishToGitHub
+      if (publishToGitHub && !selectedRepository) {
+        throw new Error("Select an accessible GitHub repository");
+      }
+      const endpoint = publishToGitHub ? "/github/runs" : "/runs";
+      const body = publishToGitHub
         ? {
-            owner,
-            name,
             installation_id: Number(installationId),
+            owner: selectedRepository?.owner,
+            name: selectedRepository?.name,
             base_ref: baseRef,
-            base_sha: baseSha
+            objective
           }
-        : undefined;
-      const response = await fetch(`${apiBase}/runs`, {
+        : { repository_path: repositoryPath, objective };
+      const response = await fetch(`${apiBase}${endpoint}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          repository_path: repositoryPath,
-          objective,
-          github_repository: githubRepository
-        })
+        body: JSON.stringify(body)
       });
       const createdRun = await responseJson<Run>(response);
       window.history.replaceState(
@@ -310,14 +385,18 @@ export function RunConsole() {
             <h2>Create an engineering run</h2>
           </div>
         </div>
-        <label htmlFor="repository-path">Local repository path</label>
-        <input
-          id="repository-path"
-          value={repositoryPath}
-          onChange={(event) => setRepositoryPath(event.target.value)}
-          placeholder="C:\\projects\\sample-repository"
-          required
-        />
+        {!publishToGitHub ? (
+          <>
+            <label htmlFor="repository-path">Local repository path</label>
+            <input
+              id="repository-path"
+              value={repositoryPath}
+              onChange={(event) => setRepositoryPath(event.target.value)}
+              placeholder="C:\\projects\\sample-repository"
+              required
+            />
+          </>
+        ) : null}
         <label htmlFor="objective">Engineering task</label>
         <textarea
           id="objective"
@@ -334,40 +413,70 @@ export function RunConsole() {
             onChange={(event) => setPublishToGitHub(event.target.checked)}
           />
           <span>
-            <strong>Prepare a GitHub pull request</strong>
+            <strong>Use an installed GitHub repository</strong>
             <small>
-              Bind this run to one installation, repository, branch, and immutable commit.
+              Forge resolves the branch once, verifies every Git object, and stores an immutable snapshot.
             </small>
           </span>
         </label>
         {publishToGitHub ? (
           <div className="github-grid">
             <label>
-              Owner
-              <input value={owner} onChange={(event) => setOwner(event.target.value)} required />
+              Installation
+              <select
+                value={installationId}
+                onChange={(event) => setInstallationId(event.target.value)}
+                disabled={catalogBusy}
+                required
+              >
+                <option value="">Select an installation</option>
+                {installations.map((installation) => (
+                  <option key={installation.installation_id} value={installation.installation_id}>
+                    {installation.account_login} · {installation.account_type}
+                  </option>
+                ))}
+              </select>
             </label>
             <label>
               Repository
-              <input value={name} onChange={(event) => setName(event.target.value)} required />
+              <select
+                value={repositoryName}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setRepositoryName(value);
+                  const repository = repositories.find((item) => item.full_name === value);
+                  if (repository) setBaseRef(repository.default_branch);
+                }}
+                disabled={catalogBusy || !installationId}
+                required
+              >
+                <option value="">Select a repository</option>
+                {repositories.map((repository) => (
+                  <option key={repository.full_name} value={repository.full_name}>
+                    {repository.full_name}{repository.private ? " · private" : ""}
+                  </option>
+                ))}
+              </select>
             </label>
-            <label>
-              Installation ID
-              <input inputMode="numeric" value={installationId} onChange={(event) => setInstallationId(event.target.value)} required />
-            </label>
-            <label>
+            <label className="wide">
               Base branch
               <input value={baseRef} onChange={(event) => setBaseRef(event.target.value)} required />
             </label>
-            <label className="wide">
-              Exact base commit SHA
-              <input value={baseSha} onChange={(event) => setBaseSha(event.target.value.toLowerCase())} pattern="[0-9a-f]{40}|[0-9a-f]{64}" required />
-            </label>
+            <p className="catalog-note">
+              {catalogBusy
+                ? "Loading authorized GitHub targets…"
+                : installations.length === 0
+                  ? "No active GitHub App installation is available."
+                  : repositories.length === 0
+                    ? "This installation has no usable repository."
+                : "The exact commit SHA is resolved and stored by the server when this run is created."}
+            </p>
           </div>
         ) : null}
         <div className="form-actions">
           <p>Hard limits protect cost, time, tool use, and patch attempts.</p>
-          <button disabled={busy === "create"} type="submit">
-            {busy === "create" ? "Creating…" : "Create bounded run"}
+          <button disabled={busy === "create" || catalogBusy} type="submit">
+            {busy === "create" ? "Capturing source…" : "Create bounded run"}
           </button>
         </div>
       </form>

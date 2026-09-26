@@ -10,6 +10,12 @@ The branch name, commit metadata, patch hash, and publication id are stable
 across retries. If a GitHub response is lost, the publisher recovers the branch
 or pull request instead of creating another one.
 
+The same service package provides the read-only GitHub catalog used by the API.
+It lists active installations and accessible repositories, resolves a branch to
+an exact commit, validates the recursive tree, verifies every Git blob hash, and
+materializes a bounded checkout for content-addressed snapshot capture. Catalog
+tokens request only metadata and contents read; publisher tokens are separate.
+
 Production mode authenticates as a GitHub App, mints short-lived installation
 tokens with metadata read, contents write, and pull-request write permissions,
 and caches them only until shortly before expiry. Configure:

@@ -356,21 +356,30 @@ class PublisherTests(unittest.TestCase):
 
         first = provider.token_for(42)
         second = provider.token_for(42)
+        read_first = provider.read_token_for(42)
+        read_second = provider.read_token_for(42)
 
         self.assertEqual(first, "ghs_test_installation_token")
         self.assertEqual(second, first)
-        self.assertEqual(len(transport.calls), 1)
+        self.assertEqual(read_first, "ghs_test_installation_token")
+        self.assertEqual(read_second, read_first)
+        self.assertEqual(len(transport.calls), 2)
         method, path, jwt, body = transport.calls[0]
         self.assertEqual(method, "POST")
         self.assertEqual(path, "/app/installations/42/access_tokens")
         self.assertEqual(body["permissions"]["contents"], "write")
         self.assertEqual(body["permissions"]["pull_requests"], "write")
+        read_body = transport.calls[1][3]
+        self.assertEqual(
+            read_body["permissions"],
+            {"contents": "read", "metadata": "read"},
+        )
         header, payload, signature = jwt.split(".")
         claims = json.loads(decode_base64url(payload))
         self.assertEqual(claims["iss"], "Iv1.test-client")
         self.assertEqual(claims["iat"], int(datetime(2026, 9, 26, tzinfo=UTC).timestamp()) - 60)
         self.assertEqual(claims["exp"], int(datetime(2026, 9, 26, tzinfo=UTC).timestamp()) + 540)
-        self.assertEqual(len(signed_inputs), 1)
+        self.assertEqual(len(signed_inputs), 2)
         self.assertEqual(signed_inputs[0], f"{header}.{payload}".encode("ascii"))
         self.assertEqual(decode_base64url(signature), b"test-signature")
 

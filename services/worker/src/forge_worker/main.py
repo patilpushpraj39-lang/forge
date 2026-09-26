@@ -13,11 +13,13 @@ from forge_agent_core import (
     OpenAIResponsesRuntime,
     PostgresIdempotencyLedger,
     RunStoreProtocol,
+    SourceSnapshot,
     SqliteIdempotencyLedger,
     create_run_store,
 )
 from forge_agent_core.run_store import RunState, TERMINAL_STATES
 from forge_sandbox_controller import (
+    ArtifactRef,
     CommandStatus,
     SandboxController,
     create_sandbox_controller,
@@ -169,7 +171,22 @@ def execute_claimed_run(
             store.acknowledge_cancellation(run_id, worker_id)
             return
 
-        sandbox = sandbox_controller.create(repository_path)
+        snapshot_sha = run.get("source_snapshot_sha256")
+        if snapshot_sha is None:
+            sandbox = sandbox_controller.create(repository_path)
+        else:
+            snapshot = SourceSnapshot(
+                str(snapshot_sha),
+                int(run["source_snapshot_size_bytes"]),
+                str(run["source_snapshot_media_type"]),
+            )
+            sandbox = sandbox_controller.create_from_snapshot(
+                ArtifactRef(
+                    snapshot.sha256,
+                    snapshot.size_bytes,
+                    snapshot.media_type,
+                )
+            )
         sandbox_id = sandbox.sandbox_id
         store.append_event(
             run_id,
