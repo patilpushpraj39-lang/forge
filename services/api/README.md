@@ -6,4 +6,11 @@ When the GitHub App variables in `.env.example` are configured, the API also
 exposes a read-only installation/repository catalog and `POST /github/runs`.
 That route resolves the requested branch to an exact commit, verifies and
 materializes its bounded Git tree, captures a content-addressed snapshot, and
-only then creates the run. GitHub credentials remain server-side.
+only then creates the run. Catalog access and GitHub-backed run creation require
+an authorized reviewer session. GitHub credentials remain server-side.
+
+Reviewer actions are disabled by default. Set `FORGE_AUTH_MODE=clerk` together
+with the Clerk public JWT key, authorized frontend origins, and
+`FORGE_REVIEWER_IDS` from `.env.example` to enable them. The API accepts only
+verified session tokens, derives the approval actor itself, and requires the
+same actor to publish an approval. It never persists bearer tokens.

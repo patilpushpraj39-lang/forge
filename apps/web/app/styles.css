@@ -58,6 +58,28 @@ h1 {
   overflow: hidden;
 }
 
+.console-auth {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 14px 24px;
+  border-bottom: 1px solid #242b34;
+  background: rgba(9, 15, 20, 0.72);
+}
+
+.console-auth > div:first-child {
+  display: grid;
+  gap: 5px;
+}
+
+.console-auth p {
+  margin: 0;
+  color: #b9c7d4;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.82rem;
+}
+
 .section-title {
   display: flex;
   align-items: center;
@@ -505,6 +527,62 @@ a:focus-visible {
   line-height: 1.45;
 }
 
+.reviewer-session,
+.auth-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.reviewer-session {
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid #293f4e;
+  border-radius: 10px;
+  background: #0b151c;
+}
+
+.reviewer-session > div:first-child {
+  display: grid;
+  gap: 6px;
+}
+
+.reviewer-session strong {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.84rem;
+}
+
+.auth-note {
+  color: #91a0ae;
+  font-size: 0.8rem;
+}
+
+.compact-button {
+  padding: 8px 11px;
+  font-size: 0.8rem;
+}
+
+.auth-controls .secondary {
+  margin-left: 0;
+}
+
+.compact-error {
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border: 1px solid #5c2b33;
+  border-radius: 9px;
+}
+
+.auth-page {
+  display: grid;
+  width: 100%;
+  min-height: 100vh;
+  margin: 0;
+  place-items: center;
+  padding: 40px;
+}
+
 .publish-form {
   display: grid;
   gap: 4px;
@@ -628,5 +706,12 @@ code {
 
   .check > span:nth-of-type(2) {
     display: none;
+  }
+
+  .reviewer-session,
+  .auth-controls,
+  .console-auth {
+    align-items: stretch;
+    flex-direction: column;
   }
 }

@@ -80,9 +80,11 @@ tree and blobs, and captures a content-addressed source snapshot before a run
 exists. The publisher replays the approved artifact, rechecks the base commit
 before any write, creates a deterministic branch and commit, and recovers an
 existing pull request after ambiguous retries. Local contract tests prove stale
-approvals cannot publish and retries create at most one pull request. Live
-GitHub App proof, authenticated reviewer identity, and public PostgreSQL CI
-evidence remain before the milestone is complete. See the
+approvals cannot publish and retries create at most one pull request. Reviewer
+identity now comes from a verified Clerk session and an explicit server-side
+allowlist; the browser cannot choose the approval actor. Live Clerk and GitHub
+proofs plus public PostgreSQL CI evidence remain before the milestone is
+complete. See the
 [approval and publishing architecture](docs/architecture/approval-publishing.md)
 and [Milestone 6 progress record](docs/verification/milestone-6-progress.md).
 

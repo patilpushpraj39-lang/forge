@@ -6,11 +6,12 @@ import os
 import tempfile
 from collections.abc import AsyncIterator
 from pathlib import Path
+from typing import Annotated
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from forge_agent_core import (
     ApprovalError,
@@ -36,9 +37,19 @@ from forge_sandbox_controller import (
     create_sandbox_controller,
 )
 
+from .auth import (
+    ReviewerAuthenticationError,
+    ReviewerAuthenticationUnavailable,
+    ReviewerAuthenticator,
+    ReviewerAuthorizationError,
+    ReviewerPrincipal,
+    create_reviewer_authenticator,
+)
+
 
 store = create_run_store()
 controller = create_sandbox_controller()
+reviewer_authenticator: ReviewerAuthenticator = create_reviewer_authenticator()
 
 
 def _configured_github_catalog() -> GitHubCatalog | None:
@@ -67,7 +78,7 @@ app.add_middleware(
     allow_origins=[os.environ.get("FORGE_WEB_ORIGIN", "http://localhost:3000")],
     allow_credentials=False,
     allow_methods=["GET", "POST"],
-    allow_headers=["content-type"],
+    allow_headers=["authorization", "content-type"],
 )
 
 
@@ -110,9 +121,10 @@ class GitHubRepositoryRequest(BaseModel):
 
 
 class GrantApprovalRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     patch_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
     evaluation_verdict_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
-    actor_id: str = Field(min_length=1, max_length=128)
     approval_key: str = Field(
         min_length=16, max_length=128, pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:-]+$"
     )
@@ -151,6 +163,25 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+def require_reviewer(request: Request) -> ReviewerPrincipal:
+    try:
+        return reviewer_authenticator.authenticate(request)
+    except ReviewerAuthenticationUnavailable as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
+    except ReviewerAuthenticationError as error:
+        raise HTTPException(status_code=401, detail=str(error)) from error
+    except ReviewerAuthorizationError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+
+
+Reviewer = Annotated[ReviewerPrincipal, Depends(require_reviewer)]
+
+
+@app.get("/auth/me")
+def current_reviewer(reviewer: Reviewer) -> dict[str, str]:
+    return reviewer.to_dict()
+
+
 def _require_github_catalog() -> GitHubCatalog:
     if github_catalog is None:
         raise HTTPException(status_code=503, detail="GitHub App is not configured")
@@ -166,7 +197,8 @@ def _github_http_error(error: Exception) -> HTTPException:
 
 
 @app.get("/github/installations")
-def list_github_installations() -> list[dict[str, object]]:
+def list_github_installations(reviewer: Reviewer) -> list[dict[str, object]]:
+    del reviewer
     try:
         return [item.to_dict() for item in _require_github_catalog().list_installations()]
     except (
@@ -178,7 +210,10 @@ def list_github_installations() -> list[dict[str, object]]:
 
 
 @app.get("/github/installations/{installation_id}/repositories")
-def list_github_repositories(installation_id: int) -> list[dict[str, object]]:
+def list_github_repositories(
+    installation_id: int, reviewer: Reviewer
+) -> list[dict[str, object]]:
+    del reviewer
     try:
         return [
             item.to_dict()
@@ -194,7 +229,10 @@ def list_github_repositories(installation_id: int) -> list[dict[str, object]]:
 
 
 @app.post("/github/runs", status_code=201)
-def create_github_run(request: CreateGitHubRunRequest) -> dict[str, object]:
+def create_github_run(
+    request: CreateGitHubRunRequest, reviewer: Reviewer
+) -> dict[str, object]:
+    del reviewer
     catalog = _require_github_catalog()
     sandbox_id: str | None = None
     try:
@@ -399,14 +437,14 @@ def cancel_run(run_id: str) -> dict[str, object]:
 
 @app.post("/runs/{run_id}/approvals", status_code=201)
 def grant_approval(
-    run_id: str, request: GrantApprovalRequest
+    run_id: str, request: GrantApprovalRequest, reviewer: Reviewer
 ) -> dict[str, object]:
     try:
         return store.grant_approval(
             run_id,
             request.patch_hash,
             request.evaluation_verdict_hash,
-            request.actor_id,
+            reviewer.actor_id,
             request.approval_key,
             request.expires_in_seconds,
         )
@@ -420,9 +458,16 @@ def grant_approval(
 
 @app.post("/runs/{run_id}/publish", status_code=202)
 def publish_run(
-    run_id: str, request: PublishRunRequest
+    run_id: str, request: PublishRunRequest, reviewer: Reviewer
 ) -> dict[str, object]:
     try:
+        approval = store.get_approval(request.approval_id)
+        if approval["run_id"] != run_id:
+            raise ApprovalError("approval not found for run")
+        if approval["actor_id"] != reviewer.actor_id:
+            raise ReviewerAuthorizationError(
+                "only the reviewer who approved this evidence may publish it"
+            )
         return store.request_publication(
             run_id,
             request.approval_id,
@@ -435,5 +480,7 @@ def publish_run(
         raise HTTPException(status_code=404, detail="run not found") from error
     except ApprovalExpiredError as error:
         raise HTTPException(status_code=410, detail=str(error)) from error
+    except ReviewerAuthorizationError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
     except (ApprovalError, PublicationError) as error:
         raise HTTPException(status_code=409, detail=str(error)) from error

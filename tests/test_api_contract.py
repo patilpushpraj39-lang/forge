@@ -7,6 +7,7 @@ from pathlib import Path
 from pydantic import ValidationError
 
 import forge_api.main as api_main
+from forge_api.auth import ReviewerPrincipal
 from forge_agent_core import RunState, RunStore
 from forge_publisher import (
     InstallationSummary,
@@ -66,6 +67,9 @@ class ApiRunContractTests(unittest.TestCase):
             )
 
     def test_api_records_repository_approval_and_publication_contract(self) -> None:
+        reviewer = ReviewerPrincipal(
+            "clerk:user_reviewer_1", "user_reviewer_1", "clerk"
+        )
         created = api_main.create_run(
             api_main.CreateRunRequest(
                 repository_path=str(self.repository),
@@ -111,10 +115,23 @@ class ApiRunContractTests(unittest.TestCase):
             api_main.GrantApprovalRequest(
                 patch_hash="a" * 64,
                 evaluation_verdict_hash="b" * 64,
-                actor_id="user:reviewer-1",
                 approval_key="approval-api-test-0001",
             ),
+            reviewer,
         )
+        with self.assertRaises(api_main.HTTPException) as denied:
+            api_main.publish_run(
+                run_id,
+                api_main.PublishRunRequest(
+                    approval_id=str(approval["approval_id"]),
+                    patch_hash="a" * 64,
+                    title="Forge fix",
+                    body="Verified by Forge.",
+                    idempotency_key="publication-api-denied-0001",
+                ),
+                ReviewerPrincipal("clerk:user_other", "user_other", "clerk"),
+            )
+        self.assertEqual(denied.exception.status_code, 403)
         publication = api_main.publish_run(
             run_id,
             api_main.PublishRunRequest(
@@ -124,11 +141,20 @@ class ApiRunContractTests(unittest.TestCase):
                 body="Verified by Forge.",
                 idempotency_key="publication-api-test-0001",
             ),
+            reviewer,
         )
 
-        self.assertEqual(approval["actor_id"], "user:reviewer-1")
+        self.assertEqual(approval["actor_id"], "clerk:user_reviewer_1")
         self.assertEqual(publication["status"], "PENDING")
         self.assertEqual(api_main.store.get_run(run_id)["state"], "PUBLISHING")
+
+        with self.assertRaises(ValidationError):
+            api_main.GrantApprovalRequest(
+                patch_hash="a" * 64,
+                evaluation_verdict_hash="b" * 64,
+                approval_key="approval-forged-actor-0001",
+                actor_id="attacker:chosen-identity",
+            )
 
     def test_review_returns_only_integrity_checked_run_evidence(self) -> None:
         created = api_main.create_run(
@@ -244,9 +270,12 @@ class ApiRunContractTests(unittest.TestCase):
                 )
 
         api_main.github_catalog = FakeCatalog()
+        reviewer = ReviewerPrincipal(
+            "clerk:user_reviewer_1", "user_reviewer_1", "clerk"
+        )
 
-        installations = api_main.list_github_installations()
-        repositories = api_main.list_github_repositories(42)
+        installations = api_main.list_github_installations(reviewer)
+        repositories = api_main.list_github_repositories(42, reviewer)
         created = api_main.create_github_run(
             api_main.CreateGitHubRunRequest(
                 installation_id=42,
@@ -254,7 +283,8 @@ class ApiRunContractTests(unittest.TestCase):
                 name="fixture",
                 base_ref="main",
                 objective="Inspect the immutable source.",
-            )
+            ),
+            reviewer,
         )
 
         self.assertEqual(installations[0]["account_login"], "octo-org")

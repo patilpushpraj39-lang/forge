@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 
 type Run = {
   run_id: string;
@@ -54,7 +54,7 @@ type Review = {
   };
 };
 
-type Approval = { approval_id: string; expires_at: string };
+type Approval = { approval_id: string; actor_id: string; expires_at: string };
 type Publication = {
   publication_id: string;
   status: string;
@@ -77,6 +77,17 @@ type GitHubRepository = {
   private: boolean;
 };
 
+type ReviewerIdentity = {
+  actor_id: string;
+  subject: string;
+  provider: string;
+};
+
+export type RunConsoleAuthentication = {
+  status: "loading" | "signed-out" | "signed-in" | "unconfigured";
+  getAccessToken?: () => Promise<string | null>;
+};
+
 const apiBase = process.env.NEXT_PUBLIC_FORGE_API_URL ?? "http://localhost:8000";
 const terminalStates = new Set(["COMPLETED", "FAILED", "CANCELLED"]);
 
@@ -96,7 +107,13 @@ function requestKey(prefix: string): string {
   return `${prefix}:${crypto.randomUUID()}`;
 }
 
-export function RunConsole() {
+export function RunConsole({
+  authentication,
+  authControl
+}: {
+  authentication: RunConsoleAuthentication;
+  authControl?: ReactNode;
+}) {
   const [repositoryPath, setRepositoryPath] = useState("");
   const [objective, setObjective] = useState("");
   const [publishToGitHub, setPublishToGitHub] = useState(false);
@@ -113,7 +130,8 @@ export function RunConsole() {
   const [publication, setPublication] = useState<Publication | null>(null);
   const [approvalRequestKey, setApprovalRequestKey] = useState<string | null>(null);
   const [publicationRequestKey, setPublicationRequestKey] = useState<string | null>(null);
-  const [reviewer, setReviewer] = useState("local:reviewer");
+  const [reviewerIdentity, setReviewerIdentity] = useState<ReviewerIdentity | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
   const [prTitle, setPrTitle] = useState("Forge: verified engineering fix");
   const [prBody, setPrBody] = useState(
@@ -159,10 +177,19 @@ export function RunConsole() {
 
   useEffect(() => {
     if (!publishToGitHub || installations.length > 0) return;
+    if (authentication.status !== "signed-in" || !authentication.getAccessToken) {
+      return;
+    }
     let cancelled = false;
     setError(null);
     setCatalogBusy(true);
-    fetch(`${apiBase}/github/installations`)
+    authentication.getAccessToken()
+      .then((token) => {
+        if (!token) throw new Error("Sign in to load GitHub installations");
+        return fetch(`${apiBase}/github/installations`, {
+          headers: { authorization: `Bearer ${token}` }
+        });
+      })
       .then((response) => responseJson<GitHubInstallation[]>(response))
       .then((items) => {
         if (cancelled) return;
@@ -180,7 +207,12 @@ export function RunConsole() {
     return () => {
       cancelled = true;
     };
-  }, [publishToGitHub, installations.length]);
+  }, [
+    authentication.getAccessToken,
+    authentication.status,
+    installations.length,
+    publishToGitHub
+  ]);
 
   useEffect(() => {
     if (!publishToGitHub || !installationId) {
@@ -188,10 +220,19 @@ export function RunConsole() {
       setRepositoryName("");
       return;
     }
+    if (authentication.status !== "signed-in" || !authentication.getAccessToken) {
+      return;
+    }
     let cancelled = false;
     setError(null);
     setCatalogBusy(true);
-    fetch(`${apiBase}/github/installations/${installationId}/repositories`)
+    authentication.getAccessToken()
+      .then((token) => {
+        if (!token) throw new Error("Sign in to load GitHub repositories");
+        return fetch(`${apiBase}/github/installations/${installationId}/repositories`, {
+          headers: { authorization: `Bearer ${token}` }
+        });
+      })
       .then((response) => responseJson<GitHubRepository[]>(response))
       .then((items) => {
         if (cancelled) return;
@@ -211,7 +252,12 @@ export function RunConsole() {
     return () => {
       cancelled = true;
     };
-  }, [publishToGitHub, installationId]);
+  }, [
+    authentication.getAccessToken,
+    authentication.status,
+    installationId,
+    publishToGitHub
+  ]);
 
   useEffect(() => {
     if (!runId) return;
@@ -265,6 +311,49 @@ export function RunConsole() {
       });
   }, [runId, run?.state]);
 
+  useEffect(() => {
+    if (authentication.status !== "signed-in" || !authentication.getAccessToken) {
+      setReviewerIdentity(null);
+      setAuthError(null);
+      return;
+    }
+    let cancelled = false;
+    authentication.getAccessToken()
+      .then((token) => {
+        if (!token) throw new Error("Your reviewer session is unavailable");
+        return fetch(`${apiBase}/auth/me`, {
+          headers: { authorization: `Bearer ${token}` }
+        });
+      })
+      .then((response) => responseJson<ReviewerIdentity>(response))
+      .then((identity) => {
+        if (!cancelled) {
+          setReviewerIdentity(identity);
+          setAuthError(null);
+        }
+      })
+      .catch((caught: unknown) => {
+        if (!cancelled) {
+          setReviewerIdentity(null);
+          setAuthError(
+            caught instanceof Error ? caught.message : "Unable to authorize reviewer"
+          );
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [authentication.status, authentication.getAccessToken]);
+
+  async function reviewerToken(): Promise<string> {
+    if (!authentication.getAccessToken) {
+      throw new Error("Reviewer authentication is not configured");
+    }
+    const token = await authentication.getAccessToken();
+    if (!token) throw new Error("Sign in before approving or publishing");
+    return token;
+  }
+
   async function createRun(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy("create");
@@ -289,9 +378,13 @@ export function RunConsole() {
             objective
           }
         : { repository_path: repositoryPath, objective };
+      const token = publishToGitHub ? await reviewerToken() : null;
       const response = await fetch(`${apiBase}${endpoint}`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          ...(token ? { authorization: `Bearer ${token}` } : {}),
+          "content-type": "application/json"
+        },
         body: JSON.stringify(body)
       });
       const createdRun = await responseJson<Run>(response);
@@ -324,19 +417,22 @@ export function RunConsole() {
   }
 
   async function approvePatch() {
-    if (!run || !review || !confirmed) return;
+    if (!run || !review || !confirmed || !reviewerIdentity) return;
     setBusy("approve");
     setError(null);
     const idempotencyKey = approvalRequestKey ?? requestKey("approval");
     setApprovalRequestKey(idempotencyKey);
     try {
+      const token = await reviewerToken();
       const response = await fetch(`${apiBase}/runs/${run.run_id}/approvals`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json"
+        },
         body: JSON.stringify({
           patch_hash: review.patch_hash,
           evaluation_verdict_hash: review.verdict_hash,
-          actor_id: reviewer,
           approval_key: idempotencyKey,
           expires_in_seconds: 900
         })
@@ -356,9 +452,13 @@ export function RunConsole() {
     const idempotencyKey = publicationRequestKey ?? requestKey("publication");
     setPublicationRequestKey(idempotencyKey);
     try {
+      const token = await reviewerToken();
       const response = await fetch(`${apiBase}/runs/${run.run_id}/publish`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json"
+        },
         body: JSON.stringify({
           approval_id: approval.approval_id,
           patch_hash: review.patch_hash,
@@ -377,6 +477,20 @@ export function RunConsole() {
 
   return (
     <section className="console" aria-label="Forge run console">
+      <div className="console-auth">
+        <div>
+          <span className="label">Reviewer access</span>
+          <p>
+            {reviewerIdentity?.actor_id ??
+              (authentication.status === "unconfigured"
+                ? "Clerk is not configured"
+                : authentication.status === "signed-out"
+                  ? "Sign in to access GitHub repositories and approve patches"
+                  : "Checking reviewer authorization…")}
+          </p>
+        </div>
+        {authControl}
+      </div>
       <form onSubmit={createRun} className="run-form">
         <div className="section-title">
           <span className="step">01</span>
@@ -426,7 +540,7 @@ export function RunConsole() {
               <select
                 value={installationId}
                 onChange={(event) => setInstallationId(event.target.value)}
-                disabled={catalogBusy}
+                disabled={catalogBusy || !reviewerIdentity}
                 required
               >
                 <option value="">Select an installation</option>
@@ -447,7 +561,7 @@ export function RunConsole() {
                   const repository = repositories.find((item) => item.full_name === value);
                   if (repository) setBaseRef(repository.default_branch);
                 }}
-                disabled={catalogBusy || !installationId}
+                disabled={catalogBusy || !reviewerIdentity || !installationId}
                 required
               >
                 <option value="">Select a repository</option>
@@ -463,7 +577,13 @@ export function RunConsole() {
               <input value={baseRef} onChange={(event) => setBaseRef(event.target.value)} required />
             </label>
             <p className="catalog-note">
-              {catalogBusy
+              {authentication.status === "unconfigured"
+                ? "Configure Clerk before connecting an installed GitHub repository."
+                : authentication.status !== "signed-in"
+                  ? "Sign in as an authorized reviewer to load GitHub installations."
+                  : !reviewerIdentity
+                    ? "Checking whether this account is an authorized reviewer."
+                    : catalogBusy
                 ? "Loading authorized GitHub targets…"
                 : installations.length === 0
                   ? "No active GitHub App installation is available."
@@ -475,7 +595,10 @@ export function RunConsole() {
         ) : null}
         <div className="form-actions">
           <p>Hard limits protect cost, time, tool use, and patch attempts.</p>
-          <button disabled={busy === "create" || catalogBusy} type="submit">
+          <button
+            disabled={busy === "create" || catalogBusy || (publishToGitHub && !reviewerIdentity)}
+            type="submit"
+          >
             {busy === "create" ? "Capturing source…" : "Create bounded run"}
           </button>
         </div>
@@ -566,21 +689,31 @@ export function RunConsole() {
                 <span className="step">03</span>
                 <div><span className="label">Human gate</span><h2>Approve and publish</h2></div>
               </div>
-              <label>
-                Reviewer identity
-                <input value={reviewer} onChange={(event) => setReviewer(event.target.value)} minLength={1} maxLength={128} />
-              </label>
+              <div className="reviewer-session">
+                <div>
+                  <span className="label">Reviewer session</span>
+                  <strong>
+                    {reviewerIdentity?.actor_id ??
+                      (authentication.status === "unconfigured"
+                        ? "Authentication not configured"
+                        : authentication.status === "signed-out"
+                          ? "Sign in required"
+                          : "Checking authorization…")}
+                  </strong>
+                </div>
+              </div>
+              {authError ? <p className="error compact-error">{authError}</p> : null}
               <label className="toggle-row confirmation">
                 <input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} />
                 <span>I reviewed the diff and checks. Approve only this patch hash, verdict, repository, and base commit for 15 minutes.</span>
               </label>
               {!approval ? (
-                <button onClick={approvePatch} disabled={!confirmed || busy === "approve"} type="button">
+                <button onClick={approvePatch} disabled={!confirmed || !reviewerIdentity || busy === "approve"} type="button">
                   {busy === "approve" ? "Approving…" : "Approve exact patch"}
                 </button>
               ) : (
                 <div className="publish-form">
-                  <p className="success">Approval recorded. It expires at {new Date(approval.expires_at).toLocaleTimeString()}.</p>
+                  <p className="success">Approval recorded for {approval.actor_id}. It expires at {new Date(approval.expires_at).toLocaleTimeString()}.</p>
                   <label>Pull request title<input value={prTitle} onChange={(event) => setPrTitle(event.target.value)} maxLength={256} /></label>
                   <label>Pull request body<textarea value={prBody} onChange={(event) => setPrBody(event.target.value)} maxLength={20000} /></label>
                   <button onClick={publishPatch} disabled={busy === "publish"} type="button">

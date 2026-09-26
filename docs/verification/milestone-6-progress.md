@@ -25,12 +25,16 @@ Status: foundation complete locally; live integration gates remain.
   issuing only one pull-request creation request.
 - Patch application is isolated from any parent Git checkout, including when a
   temporary sandbox is created inside another repository.
+- Reviewer identity is derived from a verified Clerk session and a server-side
+  allowlist; forged browser actor IDs are rejected.
+- Publication requires the same authenticated actor that granted the approval.
+- Authentication fails closed when Clerk is not configured.
 
 ## Local verification
 
-On 26 September 2026:
+On 27 September 2026:
 
-- Python suite: 82 tests, 73 passed, 9 environment-dependent tests skipped.
+- Python suite: 88 tests, 79 passed, 9 environment-dependent tests skipped.
 - Next.js type check: passed.
 - Next.js production build: passed.
 - Browser inspection: passed for the create-run and GitHub-target entry screen.
@@ -41,7 +45,7 @@ are not counted as milestone completion evidence.
 
 ## Exit gates still open
 
-- Authenticated reviewer identity and authorization.
+- Controlled live Clerk sign-in and approval proof.
 - Public CI execution of the PostgreSQL approval/publication migration.
 - Controlled live GitHub App proof of catalog discovery, immutable ingestion,
   one pull-request creation, and ambiguous-retry recovery without duplication.

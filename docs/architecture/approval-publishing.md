@@ -65,6 +65,21 @@ artifact and requires its checksum to equal the evaluated patch hash. The UI
 shows the patch hash, verdict hash, base commit, changed files, verification
 checks, and exact diff before enabling the approval action.
 
+## Reviewer identity
+
+The browser never chooses the approval actor. Clerk owns the interactive
+session, and the browser sends its short-lived session token only in the
+`Authorization` header for reviewer actions. FastAPI verifies that token with
+Clerk's official Python SDK, a locally configured public JWT key, an explicit
+authorized-party list, and a session-token-only policy. Forge then checks the
+verified subject against `FORGE_REVIEWER_IDS` and derives the durable actor ID.
+
+An unconfigured, invalid, pending, or unlisted session cannot approve. The
+request schema rejects an injected `actor_id`, and only the same authenticated
+actor that granted an approval can request its publication. Tokens are neither
+stored in the database nor written to the audit log. See
+[ADR 0005](../adr/0005-managed-reviewer-identity.md).
+
 ## GitHub authority
 
 The API signs a short-lived GitHub App JWT only on the server. Catalog discovery
@@ -81,7 +96,7 @@ the approved base commit.
 
 ## Remaining production gates
 
-- Replace the local reviewer claim with authenticated identity and authorization.
 - Execute the PostgreSQL migration and publication contracts in public CI.
+- Complete one controlled live Clerk sign-in and approval proof.
 - Run a controlled live GitHub App test covering catalog discovery, immutable
   ingestion, exactly one pull request, and an injected ambiguous-response retry.

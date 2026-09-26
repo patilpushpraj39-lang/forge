@@ -1,4 +1,4 @@
-import { RunConsole } from "./run-console";
+import { ForgeConsole } from "./auth-console";
 
 export default function HomePage() {
   return (
@@ -11,7 +11,7 @@ export default function HomePage() {
           patch, then approve the exact evidence before a pull request exists.
         </p>
       </header>
-      <RunConsole />
+      <ForgeConsole />
     </main>
   );
 }

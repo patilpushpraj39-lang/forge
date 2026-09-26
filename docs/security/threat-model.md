@@ -30,6 +30,8 @@
 | Source substitution | Branch moves or Git response is tampered with after selection | Resolve once to an exact commit, verify tree/blob hashes, persist content-addressed snapshot | Immutable-ingestion and snapshot-replay tests |
 | Malicious Git tree | Repository uses traversal, case collision, link, submodule, or oversized content | Canonical path checks, link/submodule denial, hard file/count/size limits | Catalog rejection tests |
 | Parent checkout discovery | Patch tool treats a surrounding checkout as the sandbox repository | Clear Git overrides and stop discovery at the sandbox root | Nested-repository patch test |
+| Forged reviewer identity | Browser submits another user's actor ID | Verify a short-lived session token, derive actor server-side, enforce reviewer allowlist | Authentication and forged-field tests |
+| Cross-user publication | A different signed-in user reuses an approval ID | Require publication actor to match the approval actor | Mismatched-actor API test |
 | Unauthorized write | Run pushes without approval | Patch-hash approval, outbox, GitHub permission check | Integration test |
 | Stale approval | Patch changes after approval | Approval binds repository, base SHA, patch SHA, action, and expiry | Mutation test |
 | Duplicate side effect | Retried publish creates two PRs | Stable idempotency key and stored GitHub response | Retry test |
@@ -44,9 +46,9 @@
 - The host container runtime and kernel are trusted for the first local version.
 - Curated images are built from pinned definitions and scanned before release.
 - The initial deployment is single-tenant and controlled by the builder.
-- Reviewer identity is currently a local single-tenant claim, not an
-  authenticated production identity. Internet exposure is forbidden until the
-  API binds approvals to an authenticated principal.
+- Reviewer identity uses Clerk session verification and a server-side allowlist.
+  The deployment remains single-tenant; repository-scoped multi-tenant policy
+  is not yet implemented.
 - Model-provider handling of authorized repository content follows the configured account and API data policy.
 
 ## Out of scope for the first milestone
