@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 
 from forge_sandbox_controller import (
+    CommandStatus,
     InvalidPatchError,
     LocalArtifactStore,
     LocalSandboxController,
@@ -188,6 +189,58 @@ class SandboxIntegrityTests(unittest.TestCase):
         self.assertTrue(result.output_truncated)
         self.assertLessEqual(len(result.output.encode("utf-8")), 1024)
         self.assertLess(time.monotonic() - started, 2)
+
+    def test_generated_runtime_caches_do_not_enter_source_diff(self) -> None:
+        sandbox = self.controller.create(self.repository)
+        try:
+            result = self.controller.execute(
+                sandbox.sandbox_id,
+                ("python", "-c", "import app"),
+                timeout_seconds=5,
+                should_cancel=lambda: False,
+                heartbeat=lambda: None,
+                heartbeat_interval_seconds=0.1,
+            )
+            diff = self.controller.diff(sandbox.sandbox_id)
+        finally:
+            self.controller.destroy(sandbox.sandbox_id)
+
+        self.assertEqual(result.status, CommandStatus.COMPLETED)
+        self.assertEqual(diff.changed_paths, ())
+
+    def test_valid_patch_with_blank_context_applies_without_recount(self) -> None:
+        source = self.repository / "pricing.ts"
+        source.write_text(
+            "export function price(value: number) {\n"
+            "  if (value < 0) {\n"
+            "    throw new RangeError('value');\n"
+            "  }\n"
+            "\n"
+            "  return Math.round(value);\n"
+            "}\n",
+            encoding="utf-8",
+        )
+        patch = (
+            "diff --git a/pricing.ts b/pricing.ts\n"
+            "--- a/pricing.ts\n"
+            "+++ b/pricing.ts\n"
+            "@@ -3,5 +3,5 @@ export function price(value: number) {\n"
+            "     throw new RangeError('value');\n"
+            "   }\n"
+            " \n"
+            "-  return Math.round(value);\n"
+            "+  return Math.round(value * 100) / 100;\n"
+            " }\n"
+        ).encode("utf-8")
+        sandbox = self.controller.create(self.repository)
+        try:
+            applied = self.controller.apply_patch(sandbox.sandbox_id, patch)
+            diff = self.controller.diff(sandbox.sandbox_id)
+        finally:
+            self.controller.destroy(sandbox.sandbox_id)
+
+        self.assertEqual(applied.changed_paths, ("pricing.ts",))
+        self.assertEqual(diff.changed_paths, ("pricing.ts",))
 
 
 if __name__ == "__main__":

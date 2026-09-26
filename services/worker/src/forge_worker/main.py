@@ -6,13 +6,24 @@ import socket
 from pathlib import Path
 from typing import Sequence
 
-from forge_agent_core import RunStoreProtocol, create_run_store
+from forge_agent_core import (
+    IdempotencyLedger,
+    ModelPricing,
+    ModelRuntime,
+    OpenAIResponsesRuntime,
+    PostgresIdempotencyLedger,
+    RunStoreProtocol,
+    SqliteIdempotencyLedger,
+    create_run_store,
+)
 from forge_agent_core.run_store import RunState, TERMINAL_STATES
 from forge_sandbox_controller import (
     CommandStatus,
     SandboxController,
     create_sandbox_controller,
 )
+
+from .agent_execution import execute_agent_loop
 
 
 DEFAULT_COMMAND = ("node", "--version")
@@ -141,6 +152,8 @@ def execute_claimed_run(
     timeout_seconds: float = 10,
     lease_seconds: float = 30,
     controller: SandboxController | None = None,
+    model_runtime: ModelRuntime | None = None,
+    idempotency_ledger: IdempotencyLedger | None = None,
 ) -> None:
     run_id = str(run["run_id"])
     repository_path = Path(str(run["repository_path"]))
@@ -186,6 +199,22 @@ def execute_claimed_run(
             "worker",
             lease_owner=worker_id,
         )
+        if model_runtime is not None:
+            if idempotency_ledger is None:
+                raise ValueError(
+                    "agent execution requires a durable idempotency ledger"
+                )
+            execute_agent_loop(
+                store,
+                run,
+                worker_id,
+                sandbox_controller,
+                sandbox.sandbox_id,
+                model_runtime,
+                idempotency_ledger,
+                lease_seconds=lease_seconds,
+            )
+            return
         outcome = execute_bounded_command(
             store,
             run_id,
@@ -237,6 +266,8 @@ def run_once(
     timeout_seconds: float = 10,
     lease_seconds: float = 30,
     controller: SandboxController | None = None,
+    model_runtime: ModelRuntime | None = None,
+    idempotency_ledger: IdempotencyLedger | None = None,
 ) -> bool:
     run = store.claim_next_run(worker_id, lease_seconds)
     if run is None:
@@ -249,6 +280,8 @@ def run_once(
         timeout_seconds=timeout_seconds,
         lease_seconds=lease_seconds,
         controller=controller,
+        model_runtime=model_runtime,
+        idempotency_ledger=idempotency_ledger,
     )
     return True
 
@@ -264,6 +297,32 @@ def main() -> int:
         default=os.environ.get("FORGE_DATABASE_URL"),
     )
     parser.add_argument("--once", action="store_true")
+    parser.add_argument(
+        "--agent",
+        action="store_true",
+        help="run the bounded model/tool loop instead of the smoke command",
+    )
+    parser.add_argument(
+        "--model",
+        default=os.environ.get("FORGE_OPENAI_MODEL"),
+    )
+    parser.add_argument(
+        "--input-price",
+        type=int,
+        default=_optional_int("FORGE_MODEL_INPUT_MICROUSD_PER_MILLION"),
+    )
+    parser.add_argument(
+        "--cached-input-price",
+        type=int,
+        default=_optional_int(
+            "FORGE_MODEL_CACHED_INPUT_MICROUSD_PER_MILLION"
+        ),
+    )
+    parser.add_argument(
+        "--output-price",
+        type=int,
+        default=_optional_int("FORGE_MODEL_OUTPUT_MICROUSD_PER_MILLION"),
+    )
     parser.add_argument("--worker-id")
     args = parser.parse_args()
     store = create_run_store(
@@ -271,13 +330,58 @@ def main() -> int:
         sqlite_path=args.database,
     )
     worker_id = args.worker_id or f"{socket.gethostname()}:{os.getpid()}"
+    runtime: ModelRuntime | None = None
+    ledger: IdempotencyLedger | None = None
+    if args.agent:
+        if not args.model:
+            parser.error("--agent requires --model or FORGE_OPENAI_MODEL")
+        prices = (args.input_price, args.cached_input_price, args.output_price)
+        if any(value is None for value in prices):
+            parser.error(
+                "--agent requires input, cached-input, and output prices"
+            )
+        runtime = OpenAIResponsesRuntime(
+            args.model,
+            ModelPricing(
+                int(args.input_price),
+                int(args.cached_input_price),
+                int(args.output_price),
+            ),
+        )
+        if args.database_url:
+            migration_directory = os.environ.get(
+                "FORGE_MIGRATIONS_PATH", "db/migrations"
+            )
+            ledger = PostgresIdempotencyLedger(
+                args.database_url, migration_directory
+            )
+        else:
+            ledger = SqliteIdempotencyLedger(args.database)
 
-    if args.once:
-        return 0 if run_once(store, worker_id=worker_id) else 2
+    def advance() -> bool:
+        return run_once(
+            store,
+            worker_id=worker_id,
+            model_runtime=runtime,
+            idempotency_ledger=ledger,
+        )
 
-    while run_once(store, worker_id=worker_id):
-        pass
-    return 0
+    try:
+        if args.once:
+            return 0 if advance() else 2
+        while advance():
+            pass
+        return 0
+    finally:
+        for resource in (ledger, store):
+            close = getattr(resource, "close", None)
+            if callable(close):
+                close()
+
+
+def _optional_int(name: str) -> int | None:
+    value = os.environ.get(name)
+    return None if value is None else int(value)
 
 
 if __name__ == "__main__":

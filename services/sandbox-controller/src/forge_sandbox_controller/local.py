@@ -42,25 +42,30 @@ from .protocol import (
 SNAPSHOT_MEDIA_TYPE = "application/vnd.forge.snapshot+tar"
 PATCH_MEDIA_TYPE = "text/x-diff; charset=utf-8"
 MAX_PATCH_BYTES = 256_000
+SANDBOX_IGNORED_NAMES = {
+    ".coverage",
+    ".git",
+    ".mypy_cache",
+    ".next",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".state",
+    ".venv",
+    ".artifacts",
+    ".sandboxes",
+    "__pycache__",
+    "coverage",
+    "dist",
+    "node_modules",
+}
 
 
 def _snapshot_ignore(directory: str, names: list[str]) -> set[str]:
-    ignored_names = {
-        ".git",
-        ".next",
-        ".state",
-        ".venv",
-        ".artifacts",
-        ".sandboxes",
-        "__pycache__",
-        "dist",
-        "node_modules",
-    }
     root = Path(directory)
     return {
         name
         for name in names
-        if name in ignored_names or (root / name).is_symlink()
+        if name in SANDBOX_IGNORED_NAMES or (root / name).is_symlink()
     }
 
 
@@ -133,7 +138,10 @@ def _repository_files(root: Path) -> dict[str, Path]:
         if path.is_symlink():
             raise InvalidPatchError("workspace diffs cannot contain symlinks")
         if path.is_file():
-            files[path.relative_to(root).as_posix()] = path
+            relative = path.relative_to(root)
+            if any(part in SANDBOX_IGNORED_NAMES for part in relative.parts):
+                continue
+            files[relative.as_posix()] = path
     return files
 
 
@@ -516,7 +524,7 @@ class LocalSandboxController:
             raise InvalidPatchError("patch checksum does not match expectation")
         state = self._require_sandbox(sandbox_id)
         check = subprocess.run(
-            ["git", "apply", "--check", "--recount", "-"],
+            ["git", "apply", "--check", "-"],
             cwd=state.workspace,
             input=patch,
             stdout=subprocess.PIPE,
@@ -529,7 +537,7 @@ class LocalSandboxController:
                 check.stdout.decode("utf-8", errors="replace")[:2048]
             )
         applied = subprocess.run(
-            ["git", "apply", "--recount", "-"],
+            ["git", "apply", "-"],
             cwd=state.workspace,
             input=patch,
             stdout=subprocess.PIPE,

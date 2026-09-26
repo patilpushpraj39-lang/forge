@@ -5,14 +5,70 @@ import tempfile
 import threading
 import time
 import unittest
+import hashlib
+from contextlib import closing
 from pathlib import Path
 
+from forge_agent_core import SqliteIdempotencyLedger
+from forge_agent_core.model_runtime import (
+    BudgetLimits,
+    ModelStepResult,
+    StopReason,
+    TokenUsage,
+    ToolCall,
+)
 from forge_agent_core.run_store import RunState, RunStore
 from forge_sandbox_controller import (
     LocalSandboxController,
     SandboxNotFoundError,
 )
 from forge_worker.main import run_once
+
+
+def agent_step(
+    response_id: str,
+    *,
+    calls: tuple[ToolCall, ...] = (),
+    output: dict[str, object] | None = None,
+) -> ModelStepResult:
+    return ModelStepResult(
+        provider="fixture",
+        model="fixture-model",
+        response_id=response_id,
+        stop_reason=(
+            StopReason.TOOL_REQUESTED if calls else StopReason.COMPLETED
+        ),
+        usage=TokenUsage(10, 5),
+        cost_microusd=25,
+        prompt_version="forge-agent-v1",
+        tool_version="forge-tools-v1",
+        tool_calls=calls,
+        structured_output=output,
+    )
+
+
+class ScriptedAgentRuntime:
+    def __init__(self, results: list[ModelStepResult]) -> None:
+        self.results = results
+        self.requests = []
+
+    def run_step(self, request):
+        self.requests.append(request)
+        return self.results.pop(0)
+
+
+class SlowCompletingRuntime:
+    def run_step(self, request):
+        time.sleep(0.4)
+        return agent_step(
+            "slow-response",
+            output={
+                "status": "completed",
+                "summary": "No source change was needed.",
+                "verification": ["Repository context inspected."],
+                "risks": [],
+            },
+        )
 
 
 class WalkingSkeletonTests(unittest.TestCase):
@@ -29,14 +85,85 @@ class WalkingSkeletonTests(unittest.TestCase):
 
     def test_run_persists_across_store_instances(self) -> None:
         first_store = RunStore(self.database)
-        created = first_store.create_run(str(self.repository))
+        objective = "Fix the README heading and verify the change."
+        budgets = BudgetLimits(12_000, 250_000, 90, 8, 20, 2)
+        created = first_store.create_run(
+            str(self.repository), objective, budgets
+        )
 
         reopened_store = RunStore(self.database)
         loaded = reopened_store.get_run(str(created["run_id"]))
         events = reopened_store.list_events(str(created["run_id"]))
 
         self.assertEqual(loaded["state"], RunState.CREATED)
+        self.assertEqual(loaded["objective"], objective)
+        self.assertEqual(loaded["budget_total_tokens"], 12_000)
+        self.assertEqual(loaded["budget_cost_microusd"], 250_000)
+        self.assertEqual(loaded["budget_wall_seconds"], 90)
+        self.assertEqual(loaded["budget_model_steps"], 8)
+        self.assertEqual(loaded["budget_tool_calls"], 20)
+        self.assertEqual(loaded["budget_patch_attempts"], 2)
         self.assertEqual([event["event_type"] for event in events], ["run_created"])
+        self.assertEqual(events[0]["payload"]["objective"], objective)
+        self.assertEqual(
+            events[0]["payload"]["budgets"],
+            {
+                "total_tokens": 12_000,
+                "cost_microusd": 250_000,
+                "wall_seconds": 90,
+                "model_steps": 8,
+                "tool_calls": 20,
+                "patch_attempts": 2,
+            },
+        )
+
+    def test_existing_sqlite_database_receives_safe_run_defaults(self) -> None:
+        import sqlite3
+
+        with closing(sqlite3.connect(self.database)) as connection:
+            connection.execute(
+                """
+                CREATE TABLE runs (
+                    run_id TEXT PRIMARY KEY,
+                    repository_path TEXT NOT NULL,
+                    state TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+                """
+            )
+            connection.execute(
+                """
+                CREATE TABLE run_events (
+                    event_id TEXT PRIMARY KEY,
+                    run_id TEXT NOT NULL REFERENCES runs(run_id),
+                    sequence INTEGER NOT NULL,
+                    schema_version INTEGER NOT NULL,
+                    event_type TEXT NOT NULL,
+                    occurred_at TEXT NOT NULL,
+                    actor TEXT NOT NULL,
+                    payload_json TEXT NOT NULL,
+                    UNIQUE(run_id, sequence)
+                )
+                """
+            )
+            connection.execute(
+                """
+                INSERT INTO runs(
+                    run_id, repository_path, state, created_at, updated_at
+                ) VALUES ('legacy', 'fixture', 'CREATED', 'now', 'now')
+                """
+            )
+            connection.commit()
+
+        migrated = RunStore(self.database).get_run("legacy")
+
+        self.assertEqual(
+            migrated["objective"],
+            "Inspect the repository and report verified findings.",
+        )
+        self.assertEqual(migrated["budget_total_tokens"], 50_000)
+        self.assertEqual(migrated["budget_patch_attempts"], 5)
 
     def test_worker_records_snapshot_command_and_cleanup(self) -> None:
         store = RunStore(self.database)
@@ -83,6 +210,177 @@ class WalkingSkeletonTests(unittest.TestCase):
         }
         for event in events:
             self.assertEqual(set(event), required_event_keys)
+
+    def test_bounded_agent_path_produces_patch_awaiting_approval(self) -> None:
+        store = RunStore(self.database)
+        created = store.create_run(
+            str(self.repository),
+            "Replace the README text with a Markdown heading.",
+        )
+        patch = (
+            "diff --git a/README.md b/README.md\n"
+            "--- a/README.md\n"
+            "+++ b/README.md\n"
+            "@@ -1 +1 @@\n"
+            "-fixture\n"
+            "+# Fixture\n"
+        )
+        patch_hash = hashlib.sha256(patch.encode("utf-8")).hexdigest()
+        runtime = ScriptedAgentRuntime(
+            [
+                agent_step(
+                    "response-1",
+                    calls=(
+                        ToolCall(
+                            "call-read",
+                            "read_file",
+                            {
+                                "path": "README.md",
+                                "start_line": 1,
+                                "end_line": 1,
+                            },
+                        ),
+                    ),
+                ),
+                agent_step(
+                    "response-2",
+                    calls=(
+                        ToolCall(
+                            "call-patch",
+                            "apply_patch",
+                            {
+                                "patch": patch,
+                                "expected_sha256": patch_hash,
+                            },
+                        ),
+                    ),
+                ),
+                agent_step(
+                    "response-3",
+                    calls=(ToolCall("call-diff", "get_diff", {}),),
+                ),
+                agent_step(
+                    "response-4",
+                    output={
+                        "status": "needs_approval",
+                        "summary": "README heading updated.",
+                        "verification": ["Diff contains one text change."],
+                        "risks": [],
+                    },
+                ),
+            ]
+        )
+        ledger = SqliteIdempotencyLedger(self.database)
+
+        self.assertTrue(
+            run_once(
+                store,
+                worker_id="agent-worker",
+                model_runtime=runtime,
+                idempotency_ledger=ledger,
+            )
+        )
+
+        run_id = str(created["run_id"])
+        final_run = store.get_run(run_id)
+        events = store.list_events(run_id)
+        event_types = [event["event_type"] for event in events]
+        self.assertEqual(final_run["state"], RunState.AWAITING_APPROVAL)
+        self.assertIsNone(final_run["lease_owner"])
+        self.assertIn("agent_started", event_types)
+        self.assertIn("agent_stopped", event_types)
+        self.assertIn("patch_ready", event_types)
+        self.assertEqual(event_types[-1], "workspace_destroyed")
+        patch_event = next(
+            event for event in events if event["event_type"] == "patch_ready"
+        )
+        self.assertEqual(patch_event["payload"]["changed_paths"], ["README.md"])
+        self.assertEqual(len(runtime.requests), 4)
+        self.assertEqual(runtime.requests[0].objective, final_run["objective"])
+        self.assertEqual(runtime.requests[0].budget.total_tokens, 50_000)
+        self.assertEqual(
+            (self.repository / "README.md").read_text(encoding="utf-8"),
+            "fixture\n",
+        )
+
+        cancelled = store.cancel_run(run_id)
+        self.assertEqual(cancelled["state"], RunState.CANCELLED)
+
+    def test_agent_model_call_heartbeat_prevents_duplicate_claim(self) -> None:
+        store = RunStore(self.database)
+        created = store.create_run(
+            str(self.repository), "Inspect the README without changing it."
+        )
+        run_id = str(created["run_id"])
+        worker = threading.Thread(
+            target=run_once,
+            kwargs={
+                "store": store,
+                "worker_id": "slow-agent-worker",
+                "lease_seconds": 0.12,
+                "model_runtime": SlowCompletingRuntime(),
+                "idempotency_ledger": SqliteIdempotencyLedger(self.database),
+            },
+            daemon=True,
+        )
+        worker.start()
+
+        deadline = time.monotonic() + 2
+        while time.monotonic() < deadline:
+            if any(
+                event["event_type"] == "agent_started"
+                for event in store.list_events(run_id)
+            ):
+                break
+            time.sleep(0.01)
+        else:
+            self.fail("agent did not start")
+
+        time.sleep(0.22)
+        self.assertIsNone(
+            store.claim_next_run("duplicate-agent-worker", lease_seconds=1)
+        )
+        worker.join(timeout=2)
+
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(store.get_run(run_id)["state"], RunState.COMPLETED)
+
+    def test_agent_blocked_output_becomes_an_explicit_failure(self) -> None:
+        store = RunStore(self.database)
+        created = store.create_run(
+            str(self.repository), "Perform a task that requires missing input."
+        )
+        runtime = ScriptedAgentRuntime(
+            [
+                agent_step(
+                    "blocked-response",
+                    output={
+                        "status": "blocked",
+                        "summary": "Required reproduction data is unavailable.",
+                        "verification": [],
+                        "risks": ["No patch was produced."],
+                    },
+                )
+            ]
+        )
+
+        self.assertTrue(
+            run_once(
+                store,
+                worker_id="blocked-agent-worker",
+                model_runtime=runtime,
+                idempotency_ledger=SqliteIdempotencyLedger(self.database),
+            )
+        )
+
+        run_id = str(created["run_id"])
+        self.assertEqual(store.get_run(run_id)["state"], RunState.FAILED)
+        state_event = [
+            event
+            for event in store.list_events(run_id)
+            if event["event_type"] == "state_changed"
+        ][-1]
+        self.assertEqual(state_event["payload"]["reason"], "agent_blocked")
 
     def test_cancelled_run_is_not_claimed(self) -> None:
         store = RunStore(self.database)

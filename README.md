@@ -51,8 +51,12 @@ store or an S3-compatible encrypted bucket with explicit retention. See the
 The Milestone 4 foundation adds a provider-neutral model runtime, an OpenAI
 Responses API adapter, strict serial tool schemas, code-enforced token/cost/time
 and action budgets, durable idempotency records, bounded repository and sandbox
-tools, retries, and explicit stop reasons. It has not yet run the five-task
-autonomous benchmark; that remains the milestone exit gate. See the
+tools, retries, and explicit stop reasons. Runs now persist their objective and
+exact budgets, and the worker can execute the loop through an opt-in agent path
+that ends with a content-addressed patch awaiting approval. A deterministic
+private five-task orchestration proof passes, but it uses answer patches and is
+not a model-quality result. The live-model benchmark remains the milestone exit
+gate. See the
 [agent-loop architecture](docs/architecture/agent-loop.md) and
 [Milestone 4 progress record](docs/verification/milestone-4-progress.md).
 
@@ -114,7 +118,7 @@ Install the workspaces:
 ```bash
 pnpm install
 python -m venv .venv
-.venv/Scripts/python -m pip install -e packages/agent-core -e services/api -e services/sandbox-controller -e services/worker
+.venv/Scripts/python -m pip install -e packages/agent-core -e packages/repo-intelligence -e services/api -e services/sandbox-controller -e services/worker
 ```
 
 Start PostgreSQL and configure Forge:
@@ -159,9 +163,9 @@ pnpm web:build
 ```
 
 The default walking-skeleton worker path still executes only the fixed
-`node --version` command. The bounded agent loop and secure tool executor are
-implemented separately and will replace that fixed step after task objectives,
-budgets, and approval transitions are added to the durable run contract.
+`node --version` command for regression coverage. Start the worker with
+`--agent` to use the bounded model/tool path after configuring a model, dated
+price inputs, provider credentials, and a durable idempotency ledger.
 
 ## License
 

@@ -100,6 +100,7 @@ class OpenAIResponsesRuntime(ModelRuntime):
             "max_output_tokens": max(
                 1, min(8192, request.budget.total_tokens)
             ),
+            "timeout": max(1.0, min(120.0, request.budget.wall_seconds)),
             "metadata": {
                 "forge_run_id": request.run_id[:64],
                 "forge_step_id": request.step_id[:64],

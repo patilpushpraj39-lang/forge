@@ -2,11 +2,18 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
+from .model_runtime import BudgetLimits
+from .run_contract import DEFAULT_RUN_OBJECTIVE
 from .run_store import RunState
 
 
 class RunStoreProtocol(Protocol):
-    def create_run(self, repository_path: str) -> dict[str, Any]: ...
+    def create_run(
+        self,
+        repository_path: str,
+        objective: str = DEFAULT_RUN_OBJECTIVE,
+        budgets: BudgetLimits | None = None,
+    ) -> dict[str, Any]: ...
 
     def get_run(self, run_id: str) -> dict[str, Any]: ...
 

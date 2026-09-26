@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
+import math
 from typing import Any, Protocol
 
 
@@ -80,18 +81,27 @@ class BudgetLimits:
     patch_attempts: int
 
     def __post_init__(self) -> None:
+        integer_limits = (
+            self.total_tokens,
+            self.cost_microusd,
+            self.model_steps,
+            self.tool_calls,
+            self.patch_attempts,
+        )
         if any(
-            value <= 0
-            for value in (
-                self.total_tokens,
-                self.cost_microusd,
-                self.wall_seconds,
-                self.model_steps,
-                self.tool_calls,
-                self.patch_attempts,
-            )
+            not isinstance(value, int)
+            or isinstance(value, bool)
+            or value <= 0
+            for value in integer_limits
         ):
             raise ValueError("budget limits must be positive")
+        if (
+            not isinstance(self.wall_seconds, (int, float))
+            or isinstance(self.wall_seconds, bool)
+            or not math.isfinite(self.wall_seconds)
+            or self.wall_seconds <= 0
+        ):
+            raise ValueError("wall_seconds must be positive and finite")
 
 
 @dataclass(frozen=True)

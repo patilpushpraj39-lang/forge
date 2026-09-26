@@ -76,18 +76,48 @@ h1 {
 }
 
 input,
+textarea,
 button {
   border-radius: 10px;
   border: 1px solid #38424e;
   font: inherit;
 }
 
-input {
+input,
+textarea {
   flex: 1;
   min-width: 0;
   padding: 12px 14px;
   background: #090b0e;
   color: inherit;
+}
+
+textarea {
+  width: 100%;
+  min-height: 128px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.run-form > input {
+  width: 100%;
+  margin-bottom: 20px;
+}
+
+.form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-top: 16px;
+}
+
+.form-actions p,
+.run-objective p {
+  margin: 0;
+  color: #91a0ae;
+  font-size: 0.86rem;
+  line-height: 1.5;
 }
 
 button {
@@ -118,6 +148,10 @@ button:disabled {
 .run-summary div {
   display: grid;
   gap: 6px;
+}
+
+.run-summary .run-objective {
+  max-width: 420px;
 }
 
 .repository-brief {
@@ -236,6 +270,7 @@ code {
   }
 
   .form-row,
+  .form-actions,
   .run-summary {
     align-items: stretch;
     flex-direction: column;

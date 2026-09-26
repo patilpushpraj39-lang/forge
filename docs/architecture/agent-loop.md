@@ -78,13 +78,32 @@ Repository reads are bound to the snapshot hash and return path/line
 provenance. Patch application accepts UTF-8 unified diffs only, validates path
 containment, and can require an exact SHA-256 digest.
 
+## Worker integration
+
+The durable run contract stores the objective plus exact token, cost, time,
+model-step, tool-call, and patch-attempt limits. The API validates those values
+against hard safety maxima, and the web console collects a concrete engineering
+task. Existing SQLite databases receive safe defaults; PostgreSQL uses a
+versioned migration and constraints.
+
+The worker's opt-in agent path builds an initial provenance-bound context pack,
+runs the bounded loop, records aggregate usage and stopping evidence, creates a
+content-addressed diff, destroys the workspace, and leaves a non-empty patch in
+`AWAITING_APPROVAL`. Provider calls renew the durable lease in a background
+heartbeat so a slow response cannot be claimed by a second worker.
+
+Generated caches such as `__pycache__`, `.pytest_cache`, and build output are
+excluded from source diffs. Unified patches are applied with their exact hunk
+counts; Forge does not rewrite valid patch structure with Git recount mode.
+
 ## Remaining integration
 
-The loop is not yet the default worker path. The durable task contract must add
-an objective, budget configuration, agent/verification/approval states, and
-event payloads. Then Forge will run the five private seed tasks with a pinned
-model, prompt, tool version, sandbox image, and pricing manifest. That run—not
-unit coverage alone—is the Milestone 4 exit evidence.
+Forge still needs independent verification and an approval action that replays
+the exact stored patch before GitHub publishing. Milestone 4 also requires a
+live run over the five private seed tasks with a pinned model, prompt, tool
+version, sandbox image, and pricing manifest. The deterministic private harness
+proves orchestration using answer patches; it deliberately makes no claim about
+model reasoning or task success.
 
 ## References
 

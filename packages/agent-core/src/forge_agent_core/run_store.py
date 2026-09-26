@@ -9,11 +9,21 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any, Iterator
 
+from .model_runtime import BudgetLimits
+from .run_contract import (
+    DEFAULT_RUN_BUDGETS,
+    DEFAULT_RUN_OBJECTIVE,
+    normalize_objective,
+    run_budget_payload,
+    validate_run_budgets,
+)
+
 
 class RunState(StrEnum):
     CREATED = "CREATED"
     SNAPSHOTTING = "SNAPSHOTTING"
     EXECUTING = "EXECUTING"
+    AWAITING_APPROVAL = "AWAITING_APPROVAL"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
     CANCELLED = "CANCELLED"
@@ -21,6 +31,7 @@ class RunState(StrEnum):
 
 ACTIVE_STATES = {RunState.SNAPSHOTTING, RunState.EXECUTING}
 TERMINAL_STATES = {RunState.COMPLETED, RunState.FAILED, RunState.CANCELLED}
+LEASE_RELEASE_STATES = TERMINAL_STATES | {RunState.AWAITING_APPROVAL}
 
 
 class RunNotFoundError(KeyError):
@@ -79,6 +90,13 @@ class RunStore:
                 CREATE TABLE IF NOT EXISTS runs (
                     run_id TEXT PRIMARY KEY,
                     repository_path TEXT NOT NULL,
+                    objective TEXT NOT NULL,
+                    budget_total_tokens INTEGER NOT NULL,
+                    budget_cost_microusd INTEGER NOT NULL,
+                    budget_wall_seconds REAL NOT NULL,
+                    budget_model_steps INTEGER NOT NULL,
+                    budget_tool_calls INTEGER NOT NULL,
+                    budget_patch_attempts INTEGER NOT NULL,
                     state TEXT NOT NULL,
                     attempt INTEGER NOT NULL DEFAULT 0,
                     lease_owner TEXT,
@@ -115,6 +133,16 @@ class RunStore:
             "lease_owner": "TEXT",
             "lease_expires_at": "TEXT",
             "cancellation_requested_at": "TEXT",
+            "objective": (
+                "TEXT NOT NULL DEFAULT "
+                "'Inspect the repository and report verified findings.'"
+            ),
+            "budget_total_tokens": "INTEGER NOT NULL DEFAULT 50000",
+            "budget_cost_microusd": "INTEGER NOT NULL DEFAULT 1000000",
+            "budget_wall_seconds": "REAL NOT NULL DEFAULT 600",
+            "budget_model_steps": "INTEGER NOT NULL DEFAULT 30",
+            "budget_tool_calls": "INTEGER NOT NULL DEFAULT 80",
+            "budget_patch_attempts": "INTEGER NOT NULL DEFAULT 5",
         }
         for column, definition in additions.items():
             if column not in existing:
@@ -122,7 +150,14 @@ class RunStore:
                     f"ALTER TABLE runs ADD COLUMN {column} {definition}"
                 )
 
-    def create_run(self, repository_path: str) -> dict[str, Any]:
+    def create_run(
+        self,
+        repository_path: str,
+        objective: str = DEFAULT_RUN_OBJECTIVE,
+        budgets: BudgetLimits | None = None,
+    ) -> dict[str, Any]:
+        objective = normalize_objective(objective)
+        budgets = validate_run_budgets(budgets or DEFAULT_RUN_BUDGETS)
         run_id = str(uuid.uuid4())
         created_at = now_iso()
         with self._connection() as connection:
@@ -130,17 +165,38 @@ class RunStore:
             connection.execute(
                 """
                 INSERT INTO runs(
-                    run_id, repository_path, state, attempt, created_at, updated_at
-                ) VALUES (?, ?, ?, 0, ?, ?)
+                    run_id, repository_path, objective,
+                    budget_total_tokens, budget_cost_microusd,
+                    budget_wall_seconds, budget_model_steps,
+                    budget_tool_calls, budget_patch_attempts,
+                    state, attempt, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
                 """,
-                (run_id, repository_path, RunState.CREATED, created_at, created_at),
+                (
+                    run_id,
+                    repository_path,
+                    objective,
+                    budgets.total_tokens,
+                    budgets.cost_microusd,
+                    budgets.wall_seconds,
+                    budgets.model_steps,
+                    budgets.tool_calls,
+                    budgets.patch_attempts,
+                    RunState.CREATED,
+                    created_at,
+                    created_at,
+                ),
             )
             self._append_event(
                 connection,
                 run_id,
                 "run_created",
                 "api",
-                {"repository_path": repository_path},
+                {
+                    "repository_path": repository_path,
+                    "objective": objective,
+                    "budgets": run_budget_payload(budgets),
+                },
             )
             connection.commit()
         return self.get_run(run_id)
@@ -201,7 +257,7 @@ class RunStore:
                 self._require_lease_owner(row, lease_owner)
 
             updated_at = now_iso()
-            clear_lease = target in TERMINAL_STATES
+            clear_lease = target in LEASE_RELEASE_STATES
             connection.execute(
                 """
                 UPDATE runs
@@ -346,7 +402,7 @@ class RunStore:
                     {"state": current},
                 )
 
-            if current == RunState.CREATED:
+            if current in {RunState.CREATED, RunState.AWAITING_APPROVAL}:
                 connection.execute(
                     """
                     UPDATE runs
@@ -510,4 +566,3 @@ class RunStore:
         event = dict(row)
         event["payload"] = json.loads(event.pop("payload_json"))
         return event
-

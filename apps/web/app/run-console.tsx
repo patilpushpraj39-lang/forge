@@ -5,6 +5,13 @@ import { FormEvent, useEffect, useState } from "react";
 type Run = {
   run_id: string;
   repository_path: string;
+  objective: string;
+  budget_total_tokens: number;
+  budget_cost_microusd: number;
+  budget_wall_seconds: number;
+  budget_model_steps: number;
+  budget_tool_calls: number;
+  budget_patch_attempts: number;
   state: string;
   created_at: string;
   updated_at: string;
@@ -40,6 +47,7 @@ const apiBase =
 
 export function RunConsole() {
   const [repositoryPath, setRepositoryPath] = useState("");
+  const [objective, setObjective] = useState("");
   const [run, setRun] = useState<Run | null>(null);
   const [events, setEvents] = useState<RunEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -63,6 +71,7 @@ export function RunConsole() {
       .then((restoredRun) => {
         if (!cancelled) {
           setRepositoryPath(restoredRun.repository_path);
+          setObjective(restoredRun.objective);
           setRun(restoredRun);
         }
       })
@@ -118,7 +127,10 @@ export function RunConsole() {
       const response = await fetch(`${apiBase}/runs`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ repository_path: repositoryPath })
+        body: JSON.stringify({
+          repository_path: repositoryPath,
+          objective
+        })
       });
       if (!response.ok) throw new Error(`API returned ${response.status}`);
       const createdRun = (await response.json()) as Run;
@@ -147,16 +159,29 @@ export function RunConsole() {
     <section className="console" aria-label="Forge run console">
       <form onSubmit={createRun} className="run-form">
         <label htmlFor="repository-path">Local repository path</label>
-        <div className="form-row">
-          <input
-            id="repository-path"
-            value={repositoryPath}
-            onChange={(event) => setRepositoryPath(event.target.value)}
-            placeholder="C:\\projects\\sample-repository"
-            required
-          />
+        <input
+          id="repository-path"
+          value={repositoryPath}
+          onChange={(event) => setRepositoryPath(event.target.value)}
+          placeholder="C:\\projects\\sample-repository"
+          required
+        />
+        <label htmlFor="objective">Engineering task</label>
+        <textarea
+          id="objective"
+          value={objective}
+          onChange={(event) => setObjective(event.target.value)}
+          placeholder="Fix the incorrect authentication redirect, add a regression test, and explain the root cause."
+          maxLength={10000}
+          required
+        />
+        <div className="form-actions">
+          <p>
+            The first run uses safe default limits: 50k tokens, $1 maximum,
+            10 minutes, 80 tools, and 5 patch attempts.
+          </p>
           <button disabled={submitting} type="submit">
-            {submitting ? "Creating..." : "Create run"}
+            {submitting ? "Creating..." : "Create bounded run"}
           </button>
         </div>
       </form>
@@ -172,6 +197,10 @@ export function RunConsole() {
           <div>
             <span className="label">State</span>
             <strong>{run.state}</strong>
+          </div>
+          <div className="run-objective">
+            <span className="label">Task</span>
+            <p>{run.objective}</p>
           </div>
           <button className="secondary" onClick={cancelRun} type="button">
             Cancel

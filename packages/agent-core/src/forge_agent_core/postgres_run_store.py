@@ -16,9 +16,18 @@ from .run_store import (
     ACTIVE_STATES,
     TERMINAL_STATES,
     InvalidTransitionError,
+    LEASE_RELEASE_STATES,
     LeaseOwnershipError,
     RunNotFoundError,
     RunState,
+)
+from .model_runtime import BudgetLimits
+from .run_contract import (
+    DEFAULT_RUN_BUDGETS,
+    DEFAULT_RUN_OBJECTIVE,
+    normalize_objective,
+    run_budget_payload,
+    validate_run_budgets,
 )
 
 
@@ -101,22 +110,54 @@ class PostgresRunStore:
     def close(self) -> None:
         self._pool.close()
 
-    def create_run(self, repository_path: str) -> dict[str, Any]:
+    def create_run(
+        self,
+        repository_path: str,
+        objective: str = DEFAULT_RUN_OBJECTIVE,
+        budgets: BudgetLimits | None = None,
+    ) -> dict[str, Any]:
+        objective = normalize_objective(objective)
+        budgets = validate_run_budgets(budgets or DEFAULT_RUN_BUDGETS)
         run_id = str(uuid.uuid4())
         with self._connection() as connection, connection.transaction():
             connection.execute(
                 """
-                insert into runs(run_id, repository_path, state)
-                values (%s, %s, %s)
+                insert into runs(
+                    run_id,
+                    repository_path,
+                    objective,
+                    budget_total_tokens,
+                    budget_cost_microusd,
+                    budget_wall_seconds,
+                    budget_model_steps,
+                    budget_tool_calls,
+                    budget_patch_attempts,
+                    state
+                ) values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
-                (run_id, repository_path, RunState.CREATED),
+                (
+                    run_id,
+                    repository_path,
+                    objective,
+                    budgets.total_tokens,
+                    budgets.cost_microusd,
+                    budgets.wall_seconds,
+                    budgets.model_steps,
+                    budgets.tool_calls,
+                    budgets.patch_attempts,
+                    RunState.CREATED,
+                ),
             )
             self._append_event(
                 connection,
                 run_id,
                 "run_created",
                 "api",
-                {"repository_path": repository_path},
+                {
+                    "repository_path": repository_path,
+                    "objective": objective,
+                    "budgets": run_budget_payload(budgets),
+                },
             )
         return self.get_run(run_id)
 
@@ -174,7 +215,7 @@ class PostgresRunStore:
                 )
             if lease_owner is not None:
                 self._require_lease_owner(row, lease_owner)
-            clear_lease = target in TERMINAL_STATES
+            clear_lease = target in LEASE_RELEASE_STATES
             connection.execute(
                 """
                 update runs
@@ -327,7 +368,7 @@ class PostgresRunStore:
                     {"state": current},
                 )
 
-            if current == RunState.CREATED:
+            if current in {RunState.CREATED, RunState.AWAITING_APPROVAL}:
                 connection.execute(
                     """
                     update runs

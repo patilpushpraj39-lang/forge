@@ -201,7 +201,18 @@ class PostgresIntegrationTests(unittest.TestCase):
             created = self._request_json(
                 f"http://127.0.0.1:{port}/runs",
                 method="POST",
-                payload={"repository_path": str(self.repository)},
+                payload={
+                    "repository_path": str(self.repository),
+                    "objective": "Inspect this fixture and verify it.",
+                    "budgets": {
+                        "total_tokens": 10_000,
+                        "cost_microusd": 250_000,
+                        "wall_seconds": 120,
+                        "model_steps": 10,
+                        "tool_calls": 20,
+                        "patch_attempts": 2,
+                    },
+                },
             )
             store = PostgresRunStore(self.database_url, self.migrations_path)
             try:
@@ -213,6 +224,11 @@ class PostgresIntegrationTests(unittest.TestCase):
                 f"http://127.0.0.1:{port}/runs/{created['run_id']}"
             )
             self.assertEqual(final_run["state"], "COMPLETED")
+            self.assertEqual(
+                final_run["objective"],
+                "Inspect this fixture and verify it.",
+            )
+            self.assertEqual(final_run["budget_total_tokens"], 10_000)
             events = self._read_sse_events(
                 f"http://127.0.0.1:{port}/runs/{created['run_id']}/events/stream"
             )

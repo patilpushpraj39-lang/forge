@@ -7,6 +7,9 @@ dependencies = [
   "forge-sandbox-controller==0.0.0",
 ]
 
+[project.optional-dependencies]
+openai = ["openai>=2,<3"]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
