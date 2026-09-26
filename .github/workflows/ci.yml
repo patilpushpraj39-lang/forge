@@ -44,6 +44,7 @@ jobs:
           -e packages/agent-core
           -e packages/repo-intelligence
           -e services/api
+          -e services/publisher
           -e services/sandbox-controller
           -e services/worker
       - run: node scripts/validate-scaffold.mjs

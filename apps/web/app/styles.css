@@ -19,7 +19,7 @@ body {
 }
 
 main {
-  width: min(960px, calc(100% - 40px));
+  width: min(1120px, calc(100% - 40px));
   margin: 0 auto;
   padding: 80px 0;
 }
@@ -58,6 +58,35 @@ h1 {
   overflow: hidden;
 }
 
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.section-title h2,
+.checks h3 {
+  margin: 4px 0 0;
+}
+
+.section-title.compact {
+  margin-bottom: 18px;
+}
+
+.step {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid #2f5c70;
+  border-radius: 10px;
+  color: #8bd3f7;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.78rem;
+}
+
 .run-form,
 .run-summary {
   padding: 24px;
@@ -68,6 +97,56 @@ h1 {
   display: block;
   margin-bottom: 10px;
   font-weight: 650;
+}
+
+.toggle-row {
+  display: flex !important;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 4px 0 20px;
+  padding: 14px;
+  border: 1px solid #293542;
+  border-radius: 10px;
+  background: #0c1116;
+}
+
+.toggle-row input {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin: 2px 0 0;
+  accent-color: #38bdf8;
+}
+
+.toggle-row span {
+  display: grid;
+  gap: 4px;
+  color: #dbe7ef;
+}
+
+.toggle-row small {
+  color: #91a0ae;
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+.github-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.github-grid label {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  color: #91a0ae;
+  font-size: 0.82rem;
+}
+
+.github-grid .wide {
+  grid-column: 1 / -1;
 }
 
 .form-row {
@@ -133,6 +212,15 @@ button:disabled {
   opacity: 0.55;
 }
 
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+summary:focus-visible,
+a:focus-visible {
+  outline: 2px solid #8bd3f7;
+  outline-offset: 2px;
+}
+
 .secondary {
   margin-left: auto;
   background: transparent;
@@ -152,6 +240,33 @@ button:disabled {
 
 .run-summary .run-objective {
   max-width: 420px;
+}
+
+.state {
+  width: fit-content;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: #17212a;
+  color: #b9dff1;
+  font-size: 0.74rem;
+  letter-spacing: 0.06em;
+}
+
+.state-awaiting_approval,
+.state-publishing {
+  background: #30250e;
+  color: #f6d78b;
+}
+
+.state-completed {
+  background: #0c2c23;
+  color: #89e8c0;
+}
+
+.state-failed,
+.state-cancelled {
+  background: #35191f;
+  color: #ffb4bf;
 }
 
 .repository-brief {
@@ -205,6 +320,204 @@ button:disabled {
 .brief-details p {
   color: #91a0ae;
   font-size: 0.88rem;
+}
+
+.review-panel,
+.activity {
+  padding: 24px;
+  border-bottom: 1px solid #242b34;
+}
+
+.review-panel {
+  background: linear-gradient(160deg, rgba(25, 135, 84, 0.08), transparent 48%);
+}
+
+.verdict {
+  margin-left: auto;
+  padding: 7px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.verdict-passed {
+  border: 1px solid #285d4b;
+  background: #0c2c23;
+  color: #89e8c0;
+}
+
+.verdict-failed {
+  border: 1px solid #5c2b33;
+  background: #2c151a;
+  color: #ffb4bf;
+}
+
+.evidence-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.evidence-strip div {
+  display: grid;
+  gap: 5px;
+  padding: 12px;
+  border: 1px solid #26313c;
+  border-radius: 10px;
+  background: rgba(9, 11, 14, 0.7);
+}
+
+.evidence-strip span {
+  color: #738294;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.changed-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 22px;
+}
+
+.changed-files code {
+  padding: 6px 9px;
+  border-radius: 7px;
+  background: #17212a;
+  color: #b9dff1;
+  font-size: 0.78rem;
+}
+
+.checks {
+  margin: 18px 0;
+}
+
+.checks h3 {
+  margin-bottom: 10px;
+  font-size: 0.9rem;
+}
+
+.check {
+  display: grid;
+  grid-template-columns: 12px minmax(120px, 1fr) 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid #1d232b;
+  color: #91a0ae;
+  font-size: 0.82rem;
+}
+
+.check strong {
+  color: #dbe7ef;
+}
+
+.check em {
+  color: #89e8c0;
+  font-style: normal;
+}
+
+.check-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #718096;
+}
+
+.check-passed {
+  background: #44d7a8;
+  box-shadow: 0 0 10px rgba(68, 215, 168, 0.4);
+}
+
+.check-failed {
+  background: #ff7587;
+}
+
+.diff {
+  margin: 20px 0;
+  border: 1px solid #26313c;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #080a0d;
+}
+
+.diff summary {
+  padding: 13px 15px;
+  border-bottom: 1px solid #26313c;
+  color: #b9c7d4;
+  cursor: pointer;
+  font-size: 0.84rem;
+}
+
+.diff pre {
+  max-height: 560px;
+  margin: 0;
+  padding: 18px;
+  overflow: auto;
+  color: #cbd5df;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  white-space: pre;
+}
+
+.approval-box {
+  margin-top: 24px;
+  padding: 20px;
+  border: 1px solid #34566a;
+  border-radius: 14px;
+  background: rgba(13, 28, 37, 0.82);
+}
+
+.approval-box > label,
+.publish-form label {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
+  font-weight: 650;
+}
+
+.approval-box .confirmation {
+  display: flex;
+  margin-top: 12px;
+  color: #b9c7d4;
+  font-size: 0.86rem;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.publish-form {
+  display: grid;
+  gap: 4px;
+}
+
+.success {
+  padding: 11px 13px;
+  border: 1px solid #285d4b;
+  border-radius: 9px;
+  background: #0c2c23;
+  color: #a1ebcc;
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.pr-link {
+  display: inline-block;
+  padding: 10px 0;
+  color: #8bd3f7;
+  font-weight: 700;
+}
+
+.activity {
+  border-bottom: 0;
+}
+
+.activity .timeline {
+  padding: 0;
 }
 
 .brief-details {
@@ -287,5 +600,18 @@ code {
 
   .brief-metrics {
     grid-template-columns: 1fr;
+  }
+
+  .github-grid,
+  .evidence-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .check {
+    grid-template-columns: 12px 1fr auto;
+  }
+
+  .check > span:nth-of-type(2) {
+    display: none;
   }
 }

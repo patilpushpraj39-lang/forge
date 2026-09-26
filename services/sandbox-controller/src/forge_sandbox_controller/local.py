@@ -36,6 +36,7 @@ from .protocol import (
     PatchArtifact,
     SandboxHandle,
     SandboxNotFoundError,
+    WorkspaceFile,
 )
 
 
@@ -478,6 +479,29 @@ class LocalSandboxController:
             start_line=start_line,
             end_line=end_line,
             max_characters=max_characters,
+        )
+
+    def read_workspace_file(
+        self, sandbox_id: str, path: str, max_bytes: int = 1_000_000
+    ) -> WorkspaceFile | None:
+        if max_bytes <= 0 or max_bytes > 10_000_000:
+            raise ValueError("workspace file read limit is invalid")
+        relative = PurePosixPath(path)
+        if relative.is_absolute() or not relative.parts or ".." in relative.parts:
+            raise ValueError("workspace file path escapes the repository")
+        state = self._require_sandbox(sandbox_id)
+        candidate = state.workspace.joinpath(*relative.parts)
+        if not candidate.exists():
+            return None
+        if candidate.is_symlink() or not candidate.is_file():
+            raise ValueError("workspace path is not a regular file")
+        size = candidate.stat().st_size
+        if size > max_bytes:
+            raise ValueError("workspace file exceeds read limit")
+        return WorkspaceFile(
+            relative.as_posix(),
+            candidate.read_bytes(),
+            bool(candidate.stat().st_mode & stat.S_IXUSR),
         )
 
     def dependency_neighborhood(

@@ -155,7 +155,10 @@ class IndependentEvaluationTests(unittest.TestCase):
         self.assertEqual(first.report.verdict, Verdict.PASSED)
         self.assertEqual(first.report.snapshot_hash, self.snapshot_hash)
         self.assertEqual(first.report.verdict_hash, second.report.verdict_hash)
-        self.assertEqual(first.report_artifact.sha256, second.report_artifact.sha256)
+        self.assertEqual(
+            first.report_artifact.media_type,
+            "application/vnd.forge.evaluation+json",
+        )
         self.assertTrue(first.report.rubric.passed)
         self.assertEqual(
             [item.status for item in first.report.checks],

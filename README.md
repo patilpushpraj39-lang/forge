@@ -9,8 +9,9 @@ This repository is the public product monorepo. Hidden benchmark tests and answe
 Milestones 0 and 1 are complete. Milestone 2 repository intelligence is
 implemented and awaiting clean CI reproduction. Milestone 3 secure execution
 is implemented and awaiting its first public Docker abuse-test run. Milestone
-4's bounded-agent foundation is active, and Milestone 5 independent evaluation
-is complete locally. The product contract, architecture decisions,
+4's bounded-agent foundation is active, Milestone 5 independent evaluation
+is complete locally, and the Milestone 6 approval/publishing foundation is
+implemented. The product contract, architecture decisions,
 threat model, repository structure, initial contracts, CI scaffold, three
 benchmark fixtures, five seed tasks, and the executable walking skeleton have
 been validated from clean environments.
@@ -71,6 +72,17 @@ patches and five unchanged submissions fail; repeated evaluation produces the
 same verdict hash. See the [evaluation architecture](docs/architecture/evaluation.md)
 and [Milestone 5 verification](docs/verification/milestone-5.md).
 
+Milestone 6 now has a patch-bound human approval contract, a review API and
+interface, durable publication jobs with leases and delayed retries, and a
+GitHub App publisher. The publisher replays the approved artifact, rechecks the
+base commit before any write, creates a deterministic branch and commit, and
+recovers an existing pull request after ambiguous retries. Local contract tests
+prove stale approvals cannot publish and retries create at most one pull
+request. Live GitHub App proof, authenticated reviewer identity, immutable
+GitHub snapshot ingestion, and public PostgreSQL CI evidence remain before the
+milestone is complete. See the [approval and publishing architecture](docs/architecture/approval-publishing.md)
+and [Milestone 6 progress record](docs/verification/milestone-6-progress.md).
+
 ## Product boundary
 
 Version 0.1 is intentionally narrow:
@@ -90,6 +102,7 @@ apps/web                    Next.js product interface
 services/api               HTTP and server-sent event boundary
 services/worker            Durable workflow state machine
 services/sandbox-controller Isolated execution boundary
+services/publisher         Approval-bound GitHub write boundary
 packages/contracts         Versioned cross-service schemas
 packages/agent-core        Provider-neutral agent domain
 packages/repo-intelligence Repository manifest and retrieval
@@ -129,7 +142,7 @@ Install the workspaces:
 ```bash
 pnpm install
 python -m venv .venv
-.venv/Scripts/python -m pip install -e packages/agent-core -e packages/repo-intelligence -e packages/evaluation -e services/api -e services/sandbox-controller -e services/worker
+.venv/Scripts/python -m pip install -e packages/agent-core -e packages/repo-intelligence -e packages/evaluation -e services/api -e services/sandbox-controller -e services/worker -e services/publisher
 ```
 
 Start PostgreSQL and configure Forge:

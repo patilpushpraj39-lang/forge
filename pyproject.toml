@@ -9,6 +9,7 @@ members = [
   "services/api",
   "services/sandbox-controller",
   "services/worker",
+  "services/publisher",
   "packages/agent-core",
   "packages/repo-intelligence",
   "packages/evaluation",
@@ -20,3 +21,4 @@ forge-agent-core = { workspace = true }
 forge-evaluation = { workspace = true }
 forge-sandbox-controller = { workspace = true }
 forge-repo-intelligence = { workspace = true }
+forge-publisher = { workspace = true }

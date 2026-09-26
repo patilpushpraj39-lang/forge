@@ -21,6 +21,7 @@ from .protocol import (
     SandboxController,
     SandboxHandle,
     SandboxNotFoundError,
+    WorkspaceFile,
 )
 from .s3_artifacts import S3ArtifactStore
 
@@ -39,6 +40,7 @@ __all__ = [
     "SandboxController",
     "SandboxHandle",
     "SandboxNotFoundError",
+    "WorkspaceFile",
     "S3ArtifactStore",
     "PatchArtifact",
     "build_docker_run_command",

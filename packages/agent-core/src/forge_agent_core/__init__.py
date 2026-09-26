@@ -26,6 +26,15 @@ from .model_runtime import (
     TransientModelError,
 )
 from .openai_runtime import ModelPricing, OpenAIResponsesRuntime
+from .publication_contract import (
+    ApprovalAction,
+    ApprovalError,
+    ApprovalEvidenceMismatchError,
+    ApprovalExpiredError,
+    PublicationConflictError,
+    PublicationError,
+    RepositoryTarget,
+)
 from .run_contract import (
     DEFAULT_RUN_BUDGETS,
     DEFAULT_RUN_OBJECTIVE,
@@ -45,6 +54,10 @@ __all__ = [
     "BoundedAgentLoop",
     "BudgetLimits",
     "BudgetRemaining",
+    "ApprovalAction",
+    "ApprovalError",
+    "ApprovalEvidenceMismatchError",
+    "ApprovalExpiredError",
     "ContextReference",
     "DEFAULT_RUN_BUDGETS",
     "DEFAULT_RUN_OBJECTIVE",
@@ -57,12 +70,15 @@ __all__ = [
     "MAX_RUN_BUDGETS",
     "OpenAIResponsesRuntime",
     "PermanentModelError",
+    "PublicationConflictError",
+    "PublicationError",
     "PostgresIdempotencyLedger",
     "RetryPolicy",
     "RunNotFoundError",
     "RunState",
     "RunStore",
     "RunStoreProtocol",
+    "RepositoryTarget",
     "SqliteIdempotencyLedger",
     "StopReason",
     "TokenUsage",

@@ -11,6 +11,7 @@ SOURCE_PATHS = [
     ROOT / "packages" / "evaluation" / "src",
     ROOT / "packages" / "repo-intelligence" / "src",
     ROOT / "services" / "api" / "src",
+    ROOT / "services" / "publisher" / "src",
     ROOT / "services" / "sandbox-controller" / "src",
     ROOT / "services" / "worker" / "src",
 ]

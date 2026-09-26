@@ -55,6 +55,13 @@ class PatchArtifact:
 
 
 @dataclass(frozen=True)
+class WorkspaceFile:
+    path: str
+    content: bytes
+    executable: bool
+
+
+@dataclass(frozen=True)
 class AppliedPatch:
     patch_hash: str
     changed_paths: tuple[str, ...]
@@ -111,6 +118,10 @@ class SandboxController(Protocol):
         end_line: int | None = None,
         max_characters: int = 20_000,
     ) -> SearchResult: ...
+
+    def read_workspace_file(
+        self, sandbox_id: str, path: str, max_bytes: int = 1_000_000
+    ) -> WorkspaceFile | None: ...
 
     def dependency_neighborhood(
         self,

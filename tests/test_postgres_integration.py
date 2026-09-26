@@ -161,6 +161,84 @@ class PostgresIntegrationTests(unittest.TestCase):
             ).fetchone()[0]
         self.assertEqual(outbox_count, 9)
 
+    def test_postgres_patch_bound_approval_and_publication_outbox(self) -> None:
+        import psycopg
+
+        from forge_agent_core import RepositoryTarget, RunState
+
+        created = self.store.create_run(
+            str(self.repository),
+            "Fix the PostgreSQL fixture.",
+            repository=RepositoryTarget(
+                "octo-org", "fixture", 42, "main", "c" * 40
+            ),
+        )
+        run_id = str(created["run_id"])
+        self.store.claim_next_run("postgres-approval-worker")
+        self.store.transition(
+            run_id,
+            RunState.SNAPSHOTTING,
+            RunState.EXECUTING,
+            "worker",
+            lease_owner="postgres-approval-worker",
+        )
+        self.store.transition(
+            run_id,
+            RunState.EXECUTING,
+            RunState.EVALUATING,
+            "evaluator",
+            lease_owner="postgres-approval-worker",
+        )
+        self.store.transition(
+            run_id,
+            RunState.EVALUATING,
+            RunState.AWAITING_APPROVAL,
+            "evaluator",
+            {"diff_hash": "a" * 64, "verdict_hash": "b" * 64},
+            lease_owner="postgres-approval-worker",
+        )
+        approval = self.store.grant_approval(
+            run_id,
+            "a" * 64,
+            "b" * 64,
+            "user:postgres-reviewer",
+            "postgres-approval-request-0001",
+        )
+        publication = self.store.request_publication(
+            run_id,
+            str(approval["approval_id"]),
+            "a" * 64,
+            "Forge PostgreSQL fix",
+            "Verified by Forge.",
+            "postgres-publication-request-0001",
+        )
+        claimed = self.store.claim_publication("postgres-publisher")
+        self.assertIsNotNone(claimed)
+        assert claimed is not None
+        self.store.record_publication_head(
+            str(publication["publication_id"]),
+            "postgres-publisher",
+            "d" * 40,
+        )
+        self.store.complete_publication(
+            str(publication["publication_id"]),
+            "postgres-publisher",
+            17,
+            "https://github.com/octo-org/fixture/pull/17",
+            "d" * 40,
+        )
+
+        self.assertEqual(self.store.get_run(run_id)["state"], RunState.COMPLETED)
+        with psycopg.connect(self.database_url) as connection:
+            publication_topics = connection.execute(
+                """
+                select count(*) from outbox_messages
+                where aggregate_id = %s and topic = 'publication.requested'
+                """,
+                (run_id,),
+            ).fetchone()[0]
+        self.assertEqual(publication_topics, 1)
+
     def test_live_api_worker_and_sse_replay(self) -> None:
         from forge_agent_core.postgres_run_store import PostgresRunStore
         from forge_worker.main import run_once
