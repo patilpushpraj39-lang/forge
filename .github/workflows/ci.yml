@@ -42,6 +42,7 @@ jobs:
       - run: >-
           python -m pip install
           -e packages/agent-core
+          -e packages/evaluation
           -e packages/repo-intelligence
           -e services/api
           -e services/publisher

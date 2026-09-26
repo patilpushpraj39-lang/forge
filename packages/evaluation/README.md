@@ -17,3 +17,10 @@ The evaluator:
 The stable verdict hash excludes timestamps, durations, and raw command output.
 Re-evaluating the same versioned inputs therefore yields the same verdict even
 when incidental logs differ.
+
+The package also owns the benchmark evidence contract. Its strict result record
+and deterministic summarizer separate solver failures, infrastructure
+invalidations, and invalid tasks; compute solve-rate uncertainty, latency,
+cost, regression, and failure metrics; and produce content-addressed JSON and
+Markdown benchmark cards. See
+[`benchmark-reporting.md`](../../docs/architecture/benchmark-reporting.md).

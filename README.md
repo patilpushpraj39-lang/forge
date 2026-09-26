@@ -88,6 +88,15 @@ complete. See the
 [approval and publishing architecture](docs/architecture/approval-publishing.md)
 and [Milestone 6 progress record](docs/verification/milestone-6-progress.md).
 
+Milestone 7 has started with a strict benchmark evidence pipeline. It records
+one versioned result per task, prevents mixed configurations or silently
+dropped invalidations, computes solve-rate uncertainty plus cost/latency/failure
+metrics, and emits content-addressed JSON and Markdown cards. No performance
+claim is published yet: the private task expansion, controlled experiments, and
+tagged reproduction remain. See the
+[benchmark-reporting architecture](docs/architecture/benchmark-reporting.md)
+and [Milestone 7 progress record](docs/verification/milestone-7-progress.md).
+
 ## Product boundary
 
 Version 0.1 is intentionally narrow:

@@ -1,5 +1,14 @@
 """Independent deterministic evaluation for Forge patches."""
 
+from .benchmark import (
+    BenchmarkRecord,
+    BenchmarkSplit,
+    BenchmarkSummary,
+    BenchmarkVerdict,
+    load_benchmark_jsonl,
+    summarize_benchmark,
+)
+
 from .models import (
     CheckKind,
     CheckResult,
@@ -20,6 +29,10 @@ from .rubric import DeterministicRubricGrader
 from .runner import EvaluationRunner, REPORT_MEDIA_TYPE
 
 __all__ = [
+    "BenchmarkRecord",
+    "BenchmarkSplit",
+    "BenchmarkSummary",
+    "BenchmarkVerdict",
     "CheckKind",
     "CheckResult",
     "CheckSpec",
@@ -39,4 +52,6 @@ __all__ = [
     "Verdict",
     "inspect_hidden_patch",
     "inspect_patch",
+    "load_benchmark_jsonl",
+    "summarize_benchmark",
 ]
