@@ -199,6 +199,7 @@ def execute_agent_loop(
             "stop_reason": result.stop_reason,
             "model_steps": len(result.model_steps),
             "tool_calls": len(result.tool_outputs),
+            "patch_attempts": result.patch_attempts,
             "input_tokens": result.usage.input_tokens,
             "output_tokens": result.usage.output_tokens,
             "cached_input_tokens": result.usage.cached_input_tokens,

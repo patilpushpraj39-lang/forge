@@ -291,6 +291,7 @@ class BoundedAgentLoop:
             max(0.0, self.clock() - started_at),
             policy_denial,
             retry_count,
+            tracker.patch_attempts,
         )
 
     @staticmethod

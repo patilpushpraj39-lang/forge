@@ -47,6 +47,7 @@ class BenchmarkReportingTests(unittest.TestCase):
             category=category,
             language="python",
             run_id=f"run-{task_id}",
+            task_manifest_digest="d" * 64,
             evaluation_manifest_digest="c" * 64,
             verdict=verdict,
             failure_code=failure_code,

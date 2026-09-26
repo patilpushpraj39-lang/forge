@@ -321,6 +321,10 @@ class WalkingSkeletonTests(unittest.TestCase):
         self.assertIn("patch_ready", event_types)
         self.assertIn("evaluation_started", event_types)
         self.assertIn("evaluation_completed", event_types)
+        agent_stopped = next(
+            event for event in events if event["event_type"] == "agent_stopped"
+        )
+        self.assertEqual(agent_stopped["payload"]["patch_attempts"], 1)
         evaluation = next(
             event
             for event in events

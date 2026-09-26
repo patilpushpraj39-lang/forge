@@ -45,7 +45,8 @@ class BenchmarkRecord:
     category: str
     language: str
     run_id: str
-    evaluation_manifest_digest: str
+    task_manifest_digest: str
+    evaluation_manifest_digest: str | None
     verdict: BenchmarkVerdict
     failure_code: str | None
     regression_free: bool
@@ -79,13 +80,20 @@ class BenchmarkRecord:
             self.code_revision
         ):
             raise ValueError("code_revision must be a full 40-character Git SHA")
-        if not isinstance(
-            self.evaluation_manifest_digest, str
-        ) or not _SHA256.fullmatch(self.evaluation_manifest_digest):
-            raise ValueError("evaluation_manifest_digest must be a SHA-256 digest")
+        if not isinstance(self.task_manifest_digest, str) or not _SHA256.fullmatch(
+            self.task_manifest_digest
+        ):
+            raise ValueError("task_manifest_digest must be a SHA-256 digest")
+        if self.evaluation_manifest_digest is not None and (
+            not isinstance(self.evaluation_manifest_digest, str)
+            or not _SHA256.fullmatch(self.evaluation_manifest_digest)
+        ):
+            raise ValueError(
+                "evaluation_manifest_digest must be null or a SHA-256 digest"
+            )
         for name in ("patch_attempts", "duration_ms", "cost_microusd", "tool_calls"):
             value = getattr(self, name)
-            minimum = 1 if name == "patch_attempts" else 0
+            minimum = 0
             if not isinstance(value, int) or isinstance(value, bool) or value < minimum:
                 raise ValueError(f"{name} must be an integer greater than or equal to {minimum}")
         if not isinstance(self.regression_free, bool):
@@ -100,6 +108,8 @@ class BenchmarkRecord:
                 raise ValueError("solved records cannot contain a failure code")
             if not self.regression_free:
                 raise ValueError("a solved record must be regression-free")
+            if self.evaluation_manifest_digest is None:
+                raise ValueError("a solved record requires an evaluation manifest")
         elif self.failure_code is None:
             raise ValueError("non-solved records require a failure code")
 
@@ -117,6 +127,7 @@ class BenchmarkRecord:
             "category",
             "language",
             "run_id",
+            "task_manifest_digest",
             "evaluation_manifest_digest",
             "verdict",
             "failure_code",
@@ -157,6 +168,7 @@ class BenchmarkRecord:
             "category": self.category,
             "language": self.language,
             "run_id": self.run_id,
+            "task_manifest_digest": self.task_manifest_digest,
             "evaluation_manifest_digest": self.evaluation_manifest_digest,
             "verdict": self.verdict,
             "failure_code": self.failure_code,
@@ -335,6 +347,7 @@ def summarize_benchmark(records: Iterable[BenchmarkRecord]) -> BenchmarkSummary:
                 {
                     "task_id": item.task_id,
                     "task_version": item.task_version,
+                    "task_manifest_digest": item.task_manifest_digest,
                     "split": item.task_split,
                     "category": item.category,
                     "language": item.language,

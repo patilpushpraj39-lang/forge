@@ -11,7 +11,8 @@ One record represents one task under one experiment configuration and contains:
 
 - benchmark, task, split, experiment, and task-version identifiers;
 - the exact 40-character product revision and configuration digest;
-- the evaluation-manifest digest and durable run identifier;
+- the immutable task-manifest digest, optional evaluation-manifest digest, and
+  durable run identifier;
 - a typed verdict and failure code;
 - regression status, patch attempts, duration, cost, and tool calls; and
 - category and language labels used for composition checks.
@@ -58,9 +59,37 @@ results, and at least one scored result. These gates validate one result set;
 they do not replace the separate requirements for controlled baselines,
 experiments, a tagged revision, and independent reproduction.
 
+## Durable run export
+
+Benchmark rows are not entered by hand. The exporter reads the run and its
+ordered event stream from Forge's configured durable store. It derives the
+verdict, primary failure, public-regression status, run-to-verdict duration,
+model cost, tool calls, patch attempts, and evaluation-manifest digest. Task and
+experiment metadata come from versioned manifests supplied to the command.
+
+The export fails when the run has no verdict, represents a smoke command rather
+than an agent attempt, lacks required telemetry, contains out-of-order events,
+uses naive timestamps, or has evaluation events that disagree about their
+manifest. Pre-evaluation failures remain reportable with a null evaluation
+manifest while retaining the required task-manifest digest.
+
 ## Usage
 
 ```powershell
+python scripts/export-benchmark-record.py `
+  --run-id <run-id> `
+  --benchmark-version forge-private-v1 `
+  --task-id backend-fix-001 `
+  --task-version task-v1 `
+  --task-manifest-digest <sha256> `
+  --split holdout `
+  --category backend `
+  --language python `
+  --experiment-id tool-loop-v1 `
+  --configuration-digest <sha256> `
+  --code-revision <full-git-sha> `
+  --output result.jsonl
+
 python scripts/build-benchmark-report.py results.jsonl `
   --json-output benchmark-summary.json `
   --markdown-output benchmark-card.md

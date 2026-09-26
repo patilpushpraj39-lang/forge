@@ -16,6 +16,7 @@
     "category",
     "language",
     "run_id",
+    "task_manifest_digest",
     "evaluation_manifest_digest",
     "verdict",
     "failure_code",
@@ -67,6 +68,16 @@
       "maxLength": 128
     },
     "evaluation_manifest_digest": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/sha256"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "task_manifest_digest": {
       "$ref": "#/$defs/sha256"
     },
     "verdict": {
@@ -94,7 +105,7 @@
     },
     "patch_attempts": {
       "type": "integer",
-      "minimum": 1
+      "minimum": 0
     },
     "duration_ms": {
       "type": "integer",
@@ -125,6 +136,9 @@
           },
           "regression_free": {
             "const": true
+          },
+          "evaluation_manifest_digest": {
+            "$ref": "#/$defs/sha256"
           }
         }
       },

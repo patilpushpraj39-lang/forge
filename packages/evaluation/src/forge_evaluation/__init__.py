@@ -8,6 +8,12 @@ from .benchmark import (
     load_benchmark_jsonl,
     summarize_benchmark,
 )
+from .benchmark_export import (
+    BenchmarkExperiment,
+    BenchmarkTask,
+    RunEvidenceStore,
+    export_benchmark_record,
+)
 
 from .models import (
     CheckKind,
@@ -30,8 +36,10 @@ from .runner import EvaluationRunner, REPORT_MEDIA_TYPE
 
 __all__ = [
     "BenchmarkRecord",
+    "BenchmarkExperiment",
     "BenchmarkSplit",
     "BenchmarkSummary",
+    "BenchmarkTask",
     "BenchmarkVerdict",
     "CheckKind",
     "CheckResult",
@@ -49,9 +57,11 @@ __all__ = [
     "PolicyFinding",
     "REPORT_MEDIA_TYPE",
     "RubricResult",
+    "RunEvidenceStore",
     "Verdict",
     "inspect_hidden_patch",
     "inspect_patch",
+    "export_benchmark_record",
     "load_benchmark_jsonl",
     "summarize_benchmark",
 ]

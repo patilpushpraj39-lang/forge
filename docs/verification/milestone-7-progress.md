@@ -21,13 +21,16 @@ remain.
   zero-invalidation minimum without claiming that those tasks exist yet.
 - A command-line builder emits both machine-readable JSON and a portfolio-ready
   Markdown card.
+- A durable-run exporter derives record metrics and verdicts from ordered Forge
+  events, rejects conflicting or incomplete evidence, and keeps task/experiment
+  metadata bound to versioned manifest digests.
 
 ## Local verification
 
 On 27 September 2026:
 
-- Benchmark-reporting contract tests: 5 passed.
-- Complete Python suite: 93 tests, 84 passed, 9 environment-dependent tests
+- Benchmark reporting/export contract tests: 9 passed.
+- Complete Python suite: 97 tests, 88 passed, 9 environment-dependent tests
   skipped.
 - Diff whitespace validation: passed.
 
@@ -39,7 +42,6 @@ performance claim.
 - Expand the private benchmark from 5 to 20 balanced, independently validated
   tasks, including at least 10 unseen holdout tasks.
 - Execute the baseline and at least two controlled experiments.
-- Connect completed run evidence to the strict result-record export.
 - Build the failure-analysis dashboard.
 - Reproduce the selected result from a tagged product revision and benchmark
   manifest.

@@ -169,6 +169,7 @@ class AgentLoopResult:
     elapsed_seconds: float
     policy_denial: str | None = None
     retry_count: int = 0
+    patch_attempts: int = 0
 
 
 @dataclass(frozen=True)

@@ -22,5 +22,7 @@ The package also owns the benchmark evidence contract. Its strict result record
 and deterministic summarizer separate solver failures, infrastructure
 invalidations, and invalid tasks; compute solve-rate uncertainty, latency,
 cost, regression, and failure metrics; and produce content-addressed JSON and
-Markdown benchmark cards. See
+Markdown benchmark cards. A separate exporter derives each record from the
+durable run/event audit trail rather than accepting hand-entered outcome
+metrics. See
 [`benchmark-reporting.md`](../../docs/architecture/benchmark-reporting.md).

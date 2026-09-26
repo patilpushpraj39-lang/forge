@@ -296,6 +296,7 @@ class BoundedAgentLoopTests(unittest.TestCase):
             patch_result.stop_reason,
             StopReason.PATCH_ATTEMPT_BUDGET_EXHAUSTED,
         )
+        self.assertEqual(patch_result.patch_attempts, 1)
         self.assertEqual(len(patch_executor.calls), 1)
 
     def test_model_budget_stops_before_requested_tool(self) -> None:
