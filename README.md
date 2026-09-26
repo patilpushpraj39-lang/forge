@@ -9,7 +9,8 @@ This repository is the public product monorepo. Hidden benchmark tests and answe
 Milestones 0 and 1 are complete. Milestone 2 repository intelligence is
 implemented and awaiting clean CI reproduction. Milestone 3 secure execution
 is implemented and awaiting its first public Docker abuse-test run. Milestone
-4's bounded-agent foundation is now active. The product contract, architecture decisions,
+4's bounded-agent foundation is active, and Milestone 5 independent evaluation
+is complete locally. The product contract, architecture decisions,
 threat model, repository structure, initial contracts, CI scaffold, three
 benchmark fixtures, five seed tasks, and the executable walking skeleton have
 been validated from clean environments.
@@ -59,6 +60,16 @@ not a model-quality result. The live-model benchmark remains the milestone exit
 gate. See the
 [agent-loop architecture](docs/architecture/agent-loop.md) and
 [Milestone 4 progress record](docs/verification/milestone-4-progress.md).
+
+Milestone 5 adds a solver-independent evaluator between patch generation and
+human approval. It reconstructs the immutable snapshot in a fresh sandbox,
+applies the exact content-addressed patch, enforces patch policy, runs trusted
+public and hidden checks, grades a separate deterministic rubric, and stores a
+versioned evaluation report. A failed evaluation can never enter
+`AWAITING_APPROVAL`. Five private answer patches pass; five plausible incomplete
+patches and five unchanged submissions fail; repeated evaluation produces the
+same verdict hash. See the [evaluation architecture](docs/architecture/evaluation.md)
+and [Milestone 5 verification](docs/verification/milestone-5.md).
 
 ## Product boundary
 
@@ -118,7 +129,7 @@ Install the workspaces:
 ```bash
 pnpm install
 python -m venv .venv
-.venv/Scripts/python -m pip install -e packages/agent-core -e packages/repo-intelligence -e services/api -e services/sandbox-controller -e services/worker
+.venv/Scripts/python -m pip install -e packages/agent-core -e packages/repo-intelligence -e packages/evaluation -e services/api -e services/sandbox-controller -e services/worker
 ```
 
 Start PostgreSQL and configure Forge:

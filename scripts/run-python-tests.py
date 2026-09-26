@@ -8,6 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_PATHS = [
     ROOT / "packages" / "agent-core" / "src",
+    ROOT / "packages" / "evaluation" / "src",
     ROOT / "packages" / "repo-intelligence" / "src",
     ROOT / "services" / "api" / "src",
     ROOT / "services" / "sandbox-controller" / "src",

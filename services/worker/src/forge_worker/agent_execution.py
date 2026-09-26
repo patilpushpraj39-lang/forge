@@ -18,7 +18,7 @@ from forge_agent_core import (
     RunStoreProtocol,
     StopReason,
 )
-from forge_sandbox_controller import SandboxController
+from forge_sandbox_controller import ArtifactRef, SandboxController
 
 from .tools import ForgeToolExecutor, forge_tool_specs
 
@@ -56,6 +56,7 @@ class AgentExecutionEvidence:
     result: AgentLoopResult
     changed_paths: tuple[str, ...]
     diff_hash: str | None
+    patch_artifact: ArtifactRef | None
 
 
 class LeaseHeartbeatingRuntime:
@@ -212,7 +213,7 @@ def execute_agent_loop(
 
     if result.stop_reason == StopReason.CANCELLED:
         store.acknowledge_cancellation(run_id, worker_id)
-        return AgentExecutionEvidence(result, (), None)
+        return AgentExecutionEvidence(result, (), None, None)
 
     if result.stop_reason not in {
         StopReason.COMPLETED,
@@ -226,7 +227,7 @@ def execute_agent_loop(
             {"reason": result.stop_reason},
             lease_owner=worker_id,
         )
-        return AgentExecutionEvidence(result, (), None)
+        return AgentExecutionEvidence(result, (), None, None)
 
     if structured_output and structured_output.get("status") == "blocked":
         store.transition(
@@ -240,7 +241,7 @@ def execute_agent_loop(
             },
             lease_owner=worker_id,
         )
-        return AgentExecutionEvidence(result, (), None)
+        return AgentExecutionEvidence(result, (), None, None)
 
     diff = controller.diff(sandbox_id)
     if not diff.changed_paths:
@@ -253,7 +254,7 @@ def execute_agent_loop(
                 {"reason": "approval_requested_without_patch"},
                 lease_owner=worker_id,
             )
-            return AgentExecutionEvidence(result, (), diff.diff_hash)
+            return AgentExecutionEvidence(result, (), diff.diff_hash, diff.artifact)
         store.transition(
             run_id,
             RunState.EXECUTING,
@@ -262,7 +263,7 @@ def execute_agent_loop(
             {"reason": "agent_completed_without_changes"},
             lease_owner=worker_id,
         )
-        return AgentExecutionEvidence(result, (), diff.diff_hash)
+        return AgentExecutionEvidence(result, (), diff.diff_hash, diff.artifact)
 
     store.append_event(
         run_id,
@@ -274,15 +275,6 @@ def execute_agent_loop(
             "changed_paths": list(diff.changed_paths),
         },
     )
-    store.transition(
-        run_id,
-        RunState.EXECUTING,
-        RunState.AWAITING_APPROVAL,
-        "worker",
-        {
-            "diff_hash": diff.diff_hash,
-            "changed_paths": list(diff.changed_paths),
-        },
-        lease_owner=worker_id,
+    return AgentExecutionEvidence(
+        result, diff.changed_paths, diff.diff_hash, diff.artifact
     )
-    return AgentExecutionEvidence(result, diff.changed_paths, diff.diff_hash)

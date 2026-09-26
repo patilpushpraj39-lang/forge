@@ -4,6 +4,7 @@ version = "0.0.0"
 requires-python = ">=3.12"
 dependencies = [
   "forge-agent-core==0.0.0",
+  "forge-evaluation==0.0.0",
   "forge-sandbox-controller==0.0.0",
 ]
 

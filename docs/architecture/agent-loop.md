@@ -87,10 +87,11 @@ task. Existing SQLite databases receive safe defaults; PostgreSQL uses a
 versioned migration and constraints.
 
 The worker's opt-in agent path builds an initial provenance-bound context pack,
-runs the bounded loop, records aggregate usage and stopping evidence, creates a
-content-addressed diff, destroys the workspace, and leaves a non-empty patch in
-`AWAITING_APPROVAL`. Provider calls renew the durable lease in a background
-heartbeat so a slow response cannot be claimed by a second worker.
+runs the bounded loop, records aggregate usage and stopping evidence, and
+creates a content-addressed diff. A non-empty patch then moves to `EVALUATING`;
+only the independent evaluator can move it to `AWAITING_APPROVAL`. Provider
+calls and evaluation commands renew the durable lease so another worker cannot
+claim an active run.
 
 Generated caches such as `__pycache__`, `.pytest_cache`, and build output are
 excluded from source diffs. Unified patches are applied with their exact hunk
@@ -98,8 +99,8 @@ counts; Forge does not rewrite valid patch structure with Git recount mode.
 
 ## Remaining integration
 
-Forge still needs independent verification and an approval action that replays
-the exact stored patch before GitHub publishing. Milestone 4 also requires a
+Forge still needs an approval action that replays the exact stored patch before
+GitHub publishing. Milestone 4 also requires a
 live run over the five private seed tasks with a pinned model, prompt, tool
 version, sandbox image, and pricing manifest. The deterministic private harness
 proves orchestration using answer patches; it deliberately makes no claim about

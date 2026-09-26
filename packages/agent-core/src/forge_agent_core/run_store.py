@@ -23,13 +23,18 @@ class RunState(StrEnum):
     CREATED = "CREATED"
     SNAPSHOTTING = "SNAPSHOTTING"
     EXECUTING = "EXECUTING"
+    EVALUATING = "EVALUATING"
     AWAITING_APPROVAL = "AWAITING_APPROVAL"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
     CANCELLED = "CANCELLED"
 
 
-ACTIVE_STATES = {RunState.SNAPSHOTTING, RunState.EXECUTING}
+ACTIVE_STATES = {
+    RunState.SNAPSHOTTING,
+    RunState.EXECUTING,
+    RunState.EVALUATING,
+}
 TERMINAL_STATES = {RunState.COMPLETED, RunState.FAILED, RunState.CANCELLED}
 LEASE_RELEASE_STATES = TERMINAL_STATES | {RunState.AWAITING_APPROVAL}
 
@@ -293,7 +298,7 @@ class RunStore:
                   AND (
                     state = ?
                     OR (
-                      state IN (?, ?)
+                      state IN (?, ?, ?)
                       AND lease_expires_at IS NOT NULL
                       AND lease_expires_at <= ?
                     )
@@ -305,6 +310,7 @@ class RunStore:
                     RunState.CREATED,
                     RunState.SNAPSHOTTING,
                     RunState.EXECUTING,
+                    RunState.EVALUATING,
                     claimed_at,
                 ),
             ).fetchone()
@@ -470,11 +476,16 @@ class RunStore:
         rows = connection.execute(
             """
             SELECT * FROM runs
-            WHERE state IN (?, ?)
+            WHERE state IN (?, ?, ?)
               AND cancellation_requested_at IS NOT NULL
               AND (lease_expires_at IS NULL OR lease_expires_at <= ?)
             """,
-            (RunState.SNAPSHOTTING, RunState.EXECUTING, observed_at),
+            (
+                RunState.SNAPSHOTTING,
+                RunState.EXECUTING,
+                RunState.EVALUATING,
+                observed_at,
+            ),
         ).fetchall()
         for row in rows:
             run_id = str(row["run_id"])

@@ -14,9 +14,11 @@ are denied by the first command policy.
 
 The worker has two explicit modes. The default fixed command preserves the
 walking-skeleton smoke test. `--agent` executes the persisted objective with
-the persisted run budgets and moves a non-empty patch to `AWAITING_APPROVAL`.
-Provider calls and sandbox commands renew the worker lease; completed model and
-tool operations use the configured SQLite or PostgreSQL idempotency ledger.
+the persisted run budgets. A non-empty patch enters an independent clean-sandbox
+evaluation and reaches `AWAITING_APPROVAL` only after its required checks and
+rubric pass. Provider calls, sandbox commands, and evaluation checks renew the
+worker lease; completed model and tool operations use the configured SQLite or
+PostgreSQL idempotency ledger.
 
 Live mode requires `OPENAI_API_KEY`, `FORGE_OPENAI_MODEL`, and dated price
 inputs expressed as micro-US-dollars per one million tokens:

@@ -24,6 +24,10 @@ from forge_sandbox_controller import (
 )
 
 from .agent_execution import execute_agent_loop
+from .evaluation_execution import (
+    EvaluationTemplate,
+    execute_independent_evaluation,
+)
 
 
 DEFAULT_COMMAND = ("node", "--version")
@@ -154,6 +158,7 @@ def execute_claimed_run(
     controller: SandboxController | None = None,
     model_runtime: ModelRuntime | None = None,
     idempotency_ledger: IdempotencyLedger | None = None,
+    evaluation_template: EvaluationTemplate | None = None,
 ) -> None:
     run_id = str(run["run_id"])
     repository_path = Path(str(run["repository_path"]))
@@ -204,7 +209,7 @@ def execute_claimed_run(
                 raise ValueError(
                     "agent execution requires a durable idempotency ledger"
                 )
-            execute_agent_loop(
+            evidence = execute_agent_loop(
                 store,
                 run,
                 worker_id,
@@ -214,6 +219,18 @@ def execute_claimed_run(
                 idempotency_ledger,
                 lease_seconds=lease_seconds,
             )
+            if evidence.patch_artifact is not None and evidence.changed_paths:
+                execute_independent_evaluation(
+                    store,
+                    run,
+                    worker_id,
+                    sandbox_controller,
+                    sandbox,
+                    manifest,
+                    evidence,
+                    lease_seconds=lease_seconds,
+                    template=evaluation_template,
+                )
             return
         outcome = execute_bounded_command(
             store,
@@ -268,6 +285,7 @@ def run_once(
     controller: SandboxController | None = None,
     model_runtime: ModelRuntime | None = None,
     idempotency_ledger: IdempotencyLedger | None = None,
+    evaluation_template: EvaluationTemplate | None = None,
 ) -> bool:
     run = store.claim_next_run(worker_id, lease_seconds)
     if run is None:
@@ -282,6 +300,7 @@ def run_once(
         controller=controller,
         model_runtime=model_runtime,
         idempotency_ledger=idempotency_ledger,
+        evaluation_template=evaluation_template,
     )
     return True
 

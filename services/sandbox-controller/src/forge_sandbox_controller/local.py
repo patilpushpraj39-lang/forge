@@ -561,6 +561,9 @@ class LocalSandboxController:
     def read_artifact(self, reference: ArtifactRef, max_bytes: int) -> bytes:
         return self._artifact_store.read_bytes(reference, max_bytes)
 
+    def store_artifact(self, content: bytes, media_type: str) -> ArtifactRef:
+        return self._artifact_store.put_bytes(content, media_type)
+
     def execute(
         self,
         sandbox_id: str,

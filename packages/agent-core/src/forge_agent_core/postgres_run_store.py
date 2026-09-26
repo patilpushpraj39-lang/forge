@@ -256,7 +256,7 @@ class PostgresRunStore:
                   and (
                     state = %s
                     or (
-                      state in (%s, %s)
+                      state in (%s, %s, %s)
                       and lease_expires_at is not null
                       and lease_expires_at <= clock_timestamp()
                     )
@@ -269,6 +269,7 @@ class PostgresRunStore:
                     RunState.CREATED,
                     RunState.SNAPSHOTTING,
                     RunState.EXECUTING,
+                    RunState.EVALUATING,
                 ),
             ).fetchone()
             if row is None:
@@ -437,7 +438,7 @@ class PostgresRunStore:
             """
             select *
             from runs
-            where state in (%s, %s)
+            where state in (%s, %s, %s)
               and cancellation_requested_at is not null
               and (
                 lease_expires_at is null
@@ -447,7 +448,11 @@ class PostgresRunStore:
             limit 100
             for update skip locked
             """,
-            (RunState.SNAPSHOTTING, RunState.EXECUTING),
+            (
+                RunState.SNAPSHOTTING,
+                RunState.EXECUTING,
+                RunState.EVALUATING,
+            ),
         ).fetchall()
         for row in rows:
             run_id = str(row["run_id"])

@@ -147,6 +147,8 @@ class SandboxController(Protocol):
         self, reference: ArtifactRef, max_bytes: int
     ) -> bytes: ...
 
+    def store_artifact(self, content: bytes, media_type: str) -> ArtifactRef: ...
+
     def execute(
         self,
         sandbox_id: str,
