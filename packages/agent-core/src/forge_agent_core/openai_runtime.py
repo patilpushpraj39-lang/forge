@@ -57,9 +57,12 @@ class OpenAIResponsesRuntime(ModelRuntime):
         *,
         client: Any | None = None,
         store_responses: bool = True,
+        reasoning_effort: str | None = None,
     ) -> None:
         if not model:
             raise ValueError("model is required")
+        if reasoning_effort not in {None, "none", "low", "medium", "high", "xhigh", "max"}:
+            raise ValueError("unsupported reasoning effort")
         if client is None:
             try:
                 from openai import OpenAI
@@ -72,6 +75,7 @@ class OpenAIResponsesRuntime(ModelRuntime):
         self.pricing = pricing
         self.client = client
         self.store_responses = store_responses
+        self.reasoning_effort = reasoning_effort
 
     def run_step(self, request: ModelStepRequest) -> ModelStepResult:
         validate_tool_specs(request.allowed_tools)
@@ -113,6 +117,8 @@ class OpenAIResponsesRuntime(ModelRuntime):
         }
         if request.previous_response_id is not None:
             arguments["previous_response_id"] = request.previous_response_id
+        if self.reasoning_effort is not None:
+            arguments["reasoning"] = {"effort": self.reasoning_effort}
         if request.output_schema:
             arguments["text"] = {
                 "format": {

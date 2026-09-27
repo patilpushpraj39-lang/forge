@@ -76,12 +76,13 @@ class OpenAIResponsesRuntimeTests(unittest.TestCase):
         }
         return ModelStepRequest(**values)
 
-    def runtime(self, outcomes):
+    def runtime(self, outcomes, *, reasoning_effort=None):
         client = _Client(outcomes)
         runtime = OpenAIResponsesRuntime(
             "model-snapshot",
             ModelPricing(1_000_000, 500_000, 2_000_000),
             client=client,
+            reasoning_effort=reasoning_effort,
         )
         return runtime, client
 
@@ -105,7 +106,7 @@ class OpenAIResponsesRuntimeTests(unittest.TestCase):
                 "output_tokens_details": {"reasoning_tokens": 20},
             },
         }
-        runtime, client = self.runtime([response])
+        runtime, client = self.runtime([response], reasoning_effort="medium")
 
         result = runtime.run_step(self.request())
         sent = client.responses.requests[0]
@@ -121,6 +122,11 @@ class OpenAIResponsesRuntimeTests(unittest.TestCase):
             sent["extra_headers"]["Idempotency-Key"], "a" * 64
         )
         self.assertEqual(sent["text"]["format"]["type"], "json_schema")
+        self.assertEqual(sent["reasoning"], {"effort": "medium"})
+
+    def test_reasoning_effort_is_explicitly_validated(self) -> None:
+        with self.assertRaisesRegex(ValueError, "unsupported reasoning effort"):
+            self.runtime([], reasoning_effort="extreme")
 
     def test_tool_output_continuation_references_call_and_response(self) -> None:
         response = {

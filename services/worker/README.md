@@ -20,14 +20,20 @@ rubric pass. Provider calls, sandbox commands, and evaluation checks renew the
 worker lease; completed model and tool operations use the configured SQLite or
 PostgreSQL idempotency ledger.
 
-Live mode requires `OPENAI_API_KEY`, `FORGE_OPENAI_MODEL`, and dated price
-inputs expressed as micro-US-dollars per one million tokens:
+Live mode requires `OPENAI_API_KEY`, `FORGE_OPENAI_MODEL`, an explicitly pinned
+`FORGE_OPENAI_REASONING_EFFORT`, and dated price inputs expressed as
+micro-US-dollars per one million tokens:
 
 ```text
 FORGE_MODEL_INPUT_MICROUSD_PER_MILLION
 FORGE_MODEL_CACHED_INPUT_MICROUSD_PER_MILLION
 FORGE_MODEL_OUTPUT_MICROUSD_PER_MILLION
 ```
+
+Supported reasoning values are `none`, `low`, `medium`, `high`, `xhigh`, and
+`max`; the selected model must support the configured value. Experiment
+manifests record this field so two runs cannot silently use different reasoning
+settings.
 
 Prices are configuration rather than source constants so an evaluation report
 can reproduce its original cost calculation. Run one queued task with:
