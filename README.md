@@ -196,6 +196,15 @@ Start the web console in another terminal:
 pnpm --filter @forge/web dev
 ```
 
+### Free offline product demo
+
+Open `http://127.0.0.1:3000/demo` to explore a deterministic tour of the
+snapshot, investigation, patch, evaluation, and approval workflow. This route
+runs entirely in the browser: it needs no API key, makes no model or network
+calls, spends no money, and cannot write to GitHub. Its fixed retired smoke
+example demonstrates the product interaction only; it is not benchmark or
+model-quality evidence.
+
 After creating a run, advance one queued run from a third terminal:
 
 ```bash

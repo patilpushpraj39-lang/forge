@@ -165,8 +165,11 @@ export function BenchmarkDashboard() {
   return (
     <main className="benchmark-page">
       <nav className="benchmark-nav" aria-label="Forge navigation">
-        <Link href="/">Back to run console</Link>
-        <span>Forge evidence</span>
+        <Link href="/">Run console</Link>
+        <div>
+          <Link href="/demo">Offline demo</Link>
+          <span>Forge evidence</span>
+        </div>
       </nav>
       <header className="benchmark-header">
         <div>

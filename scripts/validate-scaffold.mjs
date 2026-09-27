@@ -19,7 +19,9 @@ const requiredFiles = [
   "docs/adr/0003-separate-sandbox-control-boundary.md",
   "docs/adr/0004-provider-neutral-model-runtime.md",
   "packages/contracts/run-event.schema.json",
-  "evals/public-tasks/README.md"
+  "evals/public-tasks/README.md",
+  "apps/web/app/demo/page.tsx",
+  "apps/web/app/demo/offline-demo.tsx"
 ];
 
 const failures = [];
@@ -67,4 +69,3 @@ if (failures.length > 0) {
 }
 
 console.log(`Forge scaffold validation passed (${requiredFiles.length} required files).`);
-

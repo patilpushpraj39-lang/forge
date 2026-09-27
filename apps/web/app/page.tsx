@@ -5,7 +5,10 @@ export default function HomePage() {
   return (
     <main>
       <header className="hero">
-        <nav className="home-nav"><Link href="/benchmarks">Open failure analysis →</Link></nav>
+        <nav className="home-nav" aria-label="Forge navigation">
+          <Link href="/demo">Try free offline demo →</Link>
+          <Link href="/benchmarks">Open failure analysis</Link>
+        </nav>
         <p className="eyebrow">Forge milestone 6</p>
         <h1>Engineer, verify, approve.</h1>
         <p className="lede">
