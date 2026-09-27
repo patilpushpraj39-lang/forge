@@ -1,7 +1,7 @@
 # Milestone 7 Progress: Benchmark and Hardening
 
-Status: reporting and failure-analysis foundation complete locally; task
-expansion, experiments, and tagged reproduction remain.
+Status: reporting, failure analysis, and the balanced 20-task benchmark are
+complete locally; experiments and tagged reproduction remain.
 
 ## Implemented evidence
 
@@ -18,7 +18,7 @@ expansion, experiments, and tagged reproduction remain.
 - Canonical task-set, record-set, and summary digests make the report
   reproducible regardless of input order.
 - Release-evidence gates encode the 20-task, five-category, ten-holdout,
-  zero-invalidation minimum without claiming that those tasks exist yet.
+  zero-invalidation minimum.
 - A command-line builder emits both machine-readable JSON and a portfolio-ready
   Markdown card.
 - A durable-run exporter derives record metrics and verdicts from ordered Forge
@@ -31,6 +31,9 @@ expansion, experiments, and tagged reproduction remain.
 - Loading, unavailable, empty-selection, and no-failure states are explicit;
   synthetic preview values are visibly prohibited from use as performance
   claims.
+- The separate private `forge-private-v1` manifest contains exactly 20 tasks,
+  balanced at four each across frontend, backend, API, data, and test, with ten
+  development tasks and ten holdouts.
 
 ## Local verification
 
@@ -43,15 +46,23 @@ On 27 September 2026:
 - Browser verification: full-population rendering, category filtering,
   impossible-filter empty state, full-set gate isolation, desktop layout, and
   mobile overflow containment passed.
+- Private benchmark invariant suite: 20/20 base public pass, base hidden fail,
+  patched public pass, and patched hidden pass.
+- Independent-evaluation proof: 20/20 answer patches passed, 20/20 distractors
+  failed, 20/20 unchanged submissions failed, 20/20 verdict replays were
+  stable, and zero hidden tests appeared in solver snapshots.
+- Deterministic orchestration proof: 20/20 tasks reached awaiting approval and
+  replayed their public checks successfully. This uses stored answer patches
+  and is not a model-quality result.
+- Private benchmark checkpoint: `bb69833`.
 - Diff whitespace validation: passed.
 
-The tests use explicitly synthetic records and do not constitute a benchmark
-performance claim.
+The dashboard tests use explicitly synthetic records. The private validation
+proves task construction and evaluation behavior, not autonomous model
+performance. No benchmark performance claim has been published.
 
 ## Exit gates still open
 
-- Expand the private benchmark from 5 to 20 balanced, independently validated
-  tasks, including at least 10 unseen holdout tasks.
 - Execute the baseline and at least two controlled experiments.
 - Reproduce the selected result from a tagged product revision and benchmark
   manifest.

@@ -13,7 +13,8 @@ is implemented and awaiting its first public Docker abuse-test run. Milestone
 is complete locally, and the Milestone 6 approval/publishing foundation is
 implemented. The product contract, architecture decisions,
 threat model, repository structure, initial contracts, CI scaffold, three
-benchmark fixtures, five seed tasks, and the executable walking skeleton have
+seed fixtures, the separate balanced 20-task private benchmark, and the
+executable walking skeleton have
 been validated from clean environments.
 
 See [the Milestone 0 verification record](docs/verification/milestone-0.md) and
@@ -94,8 +95,10 @@ dropped invalidations, derives outcome and usage metrics from the durable run
 event trail, computes solve-rate uncertainty plus cost/latency/failure metrics,
 emits content-addressed JSON and Markdown cards, and provides a source-backed
 failure-analysis dashboard with category/split filters and reproduction
-digests. No performance claim is published yet: the private task expansion,
-controlled experiments, and tagged reproduction remain. See the
+digests. The private `forge-private-v1` task set now contains 20 independently
+validated tasks: four per planned category and ten holdouts. This is benchmark
+construction evidence, not model performance. Controlled experiments and
+tagged reproduction remain. See the
 [benchmark-reporting architecture](docs/architecture/benchmark-reporting.md)
 and [Milestone 7 progress record](docs/verification/milestone-7-progress.md).
 
