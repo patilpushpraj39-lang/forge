@@ -21,7 +21,7 @@ worker lease; completed model and tool operations use the configured SQLite or
 PostgreSQL idempotency ledger.
 
 Live mode requires `OPENAI_API_KEY`, `FORGE_OPENAI_MODEL`, an explicitly pinned
-`FORGE_OPENAI_REASONING_EFFORT`, and dated price inputs expressed as
+`FORGE_OPENAI_REASONING_EFFORT`, `FORGE_OPENAI_SERVICE_TIER`, and dated price inputs expressed as
 micro-US-dollars per one million tokens:
 
 ```text
@@ -34,6 +34,10 @@ Supported reasoning values are `none`, `low`, `medium`, `high`, `xhigh`, and
 `max`; the selected model must support the configured value. Experiment
 manifests record this field so two runs cannot silently use different reasoning
 settings.
+
+Set the service tier to `default` to request standard pricing and performance;
+Forge sends the value on every Responses API call instead of inheriting a
+mutable project default.
 
 Prices are configuration rather than source constants so an evaluation report
 can reproduce its original cost calculation. Run one queued task with:

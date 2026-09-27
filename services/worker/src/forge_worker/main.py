@@ -348,6 +348,11 @@ def main() -> int:
         default=os.environ.get("FORGE_OPENAI_REASONING_EFFORT"),
     )
     parser.add_argument(
+        "--service-tier",
+        choices=("auto", "default", "flex", "fast", "priority", "ultrafast"),
+        default=os.environ.get("FORGE_OPENAI_SERVICE_TIER"),
+    )
+    parser.add_argument(
         "--input-price",
         type=int,
         default=_optional_int("FORGE_MODEL_INPUT_MICROUSD_PER_MILLION"),
@@ -389,6 +394,7 @@ def main() -> int:
                 int(args.output_price),
             ),
             reasoning_effort=args.reasoning_effort,
+            service_tier=args.service_tier,
         )
         if args.database_url:
             migration_directory = os.environ.get(

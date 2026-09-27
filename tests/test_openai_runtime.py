@@ -76,13 +76,14 @@ class OpenAIResponsesRuntimeTests(unittest.TestCase):
         }
         return ModelStepRequest(**values)
 
-    def runtime(self, outcomes, *, reasoning_effort=None):
+    def runtime(self, outcomes, *, reasoning_effort=None, service_tier=None):
         client = _Client(outcomes)
         runtime = OpenAIResponsesRuntime(
             "model-snapshot",
             ModelPricing(1_000_000, 500_000, 2_000_000),
             client=client,
             reasoning_effort=reasoning_effort,
+            service_tier=service_tier,
         )
         return runtime, client
 
@@ -106,7 +107,9 @@ class OpenAIResponsesRuntimeTests(unittest.TestCase):
                 "output_tokens_details": {"reasoning_tokens": 20},
             },
         }
-        runtime, client = self.runtime([response], reasoning_effort="medium")
+        runtime, client = self.runtime(
+            [response], reasoning_effort="medium", service_tier="default"
+        )
 
         result = runtime.run_step(self.request())
         sent = client.responses.requests[0]
@@ -123,10 +126,13 @@ class OpenAIResponsesRuntimeTests(unittest.TestCase):
         )
         self.assertEqual(sent["text"]["format"]["type"], "json_schema")
         self.assertEqual(sent["reasoning"], {"effort": "medium"})
+        self.assertEqual(sent["service_tier"], "default")
 
     def test_reasoning_effort_is_explicitly_validated(self) -> None:
         with self.assertRaisesRegex(ValueError, "unsupported reasoning effort"):
             self.runtime([], reasoning_effort="extreme")
+        with self.assertRaisesRegex(ValueError, "unsupported service tier"):
+            self.runtime([], service_tier="slow")
 
     def test_tool_output_continuation_references_call_and_response(self) -> None:
         response = {
