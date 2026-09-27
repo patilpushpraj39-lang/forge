@@ -150,6 +150,24 @@ class ModelRuntime(Protocol):
     def run_step(self, request: ModelStepRequest) -> ModelStepResult: ...
 
 
+@dataclass(frozen=True)
+class ProviderErrorDetails:
+    provider: str
+    error_type: str
+    error_code: str | None
+    status_code: int | None
+    request_id: str | None
+    retryable: bool
+
+
+class ProviderModelError(RuntimeError):
+    def __init__(self, details: ProviderErrorDetails) -> None:
+        super().__init__(
+            f"{details.provider} provider error: {details.error_type}"
+        )
+        self.details = details
+
+
 class TransientModelError(RuntimeError):
     pass
 
@@ -170,6 +188,7 @@ class AgentLoopResult:
     policy_denial: str | None = None
     retry_count: int = 0
     patch_attempts: int = 0
+    provider_error: ProviderErrorDetails | None = None
 
 
 @dataclass(frozen=True)

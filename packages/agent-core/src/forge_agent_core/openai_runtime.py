@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -10,6 +11,8 @@ from .model_runtime import (
     ModelStepRequest,
     ModelStepResult,
     PermanentModelError,
+    ProviderErrorDetails,
+    ProviderModelError,
     StopReason,
     TokenUsage,
     ToolCall,
@@ -136,21 +139,10 @@ class OpenAIResponsesRuntime(ModelRuntime):
             }
         try:
             response = self.client.responses.create(**arguments)
-        except (TransientModelError, PermanentModelError):
+        except (TransientModelError, PermanentModelError, ProviderModelError):
             raise
         except Exception as error:
-            name = type(error).__name__.casefold()
-            if any(
-                marker in name
-                for marker in (
-                    "ratelimit",
-                    "timeout",
-                    "connection",
-                    "internalserver",
-                )
-            ):
-                raise TransientModelError(str(error)) from error
-            raise PermanentModelError(str(error)) from error
+            raise ProviderModelError(_provider_error_details(error)) from error
         status = str(_field(response, "status", "completed"))
         if status not in {"completed", "incomplete"}:
             raise PermanentModelError(f"provider response status: {status}")
@@ -275,3 +267,75 @@ def _field(value: Any, name: str, default: Any = None) -> Any:
     if isinstance(value, dict):
         return value.get(name, default)
     return getattr(value, name, default)
+
+
+_NON_RETRYABLE_CODES = {
+    "credit_balance_exhausted",
+    "insufficient_quota",
+    "organization_spend_limit_exceeded",
+    "organization_usage_limit_exceeded",
+    "project_spend_limit_exceeded",
+}
+_SAFE_IDENTIFIER = re.compile(r"[A-Za-z0-9_.:-]{1,128}")
+
+
+def _provider_error_details(error: Exception) -> ProviderErrorDetails:
+    error_type = type(error).__name__[:128]
+    error_code = _safe_identifier(_error_field(error, "code"))
+    status_code = _status_code(_error_field(error, "status_code"))
+    request_id = _safe_identifier(_error_field(error, "request_id"))
+    folded_type = error_type.casefold()
+    retryable = (
+        error_code not in _NON_RETRYABLE_CODES
+        and (
+            status_code in {429, 500, 502, 503, 504}
+            or any(
+                marker in folded_type
+                for marker in (
+                    "ratelimit",
+                    "timeout",
+                    "connection",
+                    "internalserver",
+                )
+            )
+        )
+    )
+    return ProviderErrorDetails(
+        provider="openai",
+        error_type=error_type,
+        error_code=error_code,
+        status_code=status_code,
+        request_id=request_id,
+        retryable=retryable,
+    )
+
+
+def _error_field(error: Exception, name: str) -> Any:
+    direct = getattr(error, name, None)
+    if direct is not None:
+        return direct
+    body = getattr(error, "body", None)
+    if isinstance(body, dict):
+        if body.get(name) is not None:
+            return body[name]
+        nested = body.get("error")
+        if isinstance(nested, dict):
+            return nested.get(name)
+    return None
+
+
+def _safe_identifier(value: Any) -> str | None:
+    if value is None:
+        return None
+    candidate = str(value)
+    return candidate if _SAFE_IDENTIFIER.fullmatch(candidate) else None
+
+
+def _status_code(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    try:
+        candidate = int(value)
+    except (TypeError, ValueError):
+        return None
+    return candidate if 100 <= candidate <= 599 else None

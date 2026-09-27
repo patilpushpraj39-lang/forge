@@ -19,7 +19,8 @@
 | Configured cost calculation | Pass |
 | Token, cost, time, step, tool, and patch budgets | Pass |
 | Unknown/invalid tool denial before execution | Pass |
-| Transient retry and permanent-error stop | Pass |
+| Temporary provider retries and non-retryable billing/quota stop | Pass |
+| Sanitized provider code/status/request-ID evidence | Pass |
 | In-memory duplicate-delivery protection | Pass |
 | SQLite idempotency survives process-local ledger recreation | Pass |
 | PostgreSQL idempotency integration test | Implemented; CI pending |
@@ -36,11 +37,11 @@
 | Snapshot-plus-patch replay public tests | 5/5 pass |
 | Source benchmark checkout remains unchanged | 5/5 pass |
 
-The local suite collects 55 tests. Forty-seven pass. Five PostgreSQL integration
-tests skip without a configured database and three Docker abuse tests skip
-without a configured immutable test image.
+The 2026-09-27 local regression suite collects 107 tests. Ninety-eight pass.
+Six PostgreSQL integration tests skip without a configured database and three
+Docker abuse tests skip without a configured immutable test image.
 
-The separate private benchmark harness ran all five seed tasks through the real
+The separate private benchmark harness ran all twenty tasks through the real
 run store, worker, bounded loop, tool executor, sandbox, artifact store, approval
 transition, clean snapshot replay, and public test command. Each used five
 scripted model steps and four tool calls and reached `AWAITING_APPROVAL`.
@@ -52,9 +53,11 @@ machine-readable report.
 
 ## Not yet claimed
 
-- No live OpenAI request has been made from this checkpoint.
-- The five private seed tasks have not yet been attempted by a live language
-  model.
+- A one-task live canary reached the provider boundary but stopped before any
+  model step because the API account had no remaining credits. It recorded zero
+  input/output tokens and zero cost, so it is infrastructure evidence only.
+- The private benchmark tasks have not yet been attempted successfully by a
+  live language model.
 - No model-quality or task-success rate is reported.
 - The new PostgreSQL idempotency test and Docker abuse lane still require a
   clean public GitHub Actions run.
@@ -64,6 +67,8 @@ machine-readable report.
 1. Reproduce PostgreSQL migrations/idempotency and Docker abuse tests in CI.
 2. Add independent patch verification against a clean replay sandbox.
 3. Add a patch-bound approval action before any GitHub write.
-4. Run the pinned live-model benchmark across all five tasks.
+4. After the product is otherwise complete and API billing is explicitly
+   enabled, run the pinned one-task canary and then the controlled live-model
+   benchmark.
 5. Publish success, cost, latency,
    stopping-reason, and diff metrics without exposing hidden tests or answers.

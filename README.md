@@ -54,7 +54,9 @@ store or an S3-compatible encrypted bucket with explicit retention. See the
 The Milestone 4 foundation adds a provider-neutral model runtime, an OpenAI
 Responses API adapter, strict serial tool schemas, code-enforced token/cost/time
 and action budgets, durable idempotency records, bounded repository and sandbox
-tools, retries, and explicit stop reasons. Runs now persist their objective and
+tools, retries, explicit stop reasons, and sanitized provider-error evidence.
+Known billing, quota, and spend-limit errors stop without wasteful retries.
+Runs now persist their objective and
 exact budgets, and the worker can execute the loop through an opt-in agent path
 that ends with a content-addressed patch awaiting approval. A deterministic
 private five-task orchestration proof passes, but it uses answer patches and is

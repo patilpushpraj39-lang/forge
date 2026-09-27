@@ -15,6 +15,8 @@ from .model_runtime import (
     ModelStepRequest,
     ModelStepResult,
     PermanentModelError,
+    ProviderErrorDetails,
+    ProviderModelError,
     RetryPolicy,
     StopReason,
     ToolOutput,
@@ -158,6 +160,28 @@ class BoundedAgentLoop:
                         result = self.runtime.run_step(model_request)
                         self.ledger.put_model_step(model_key, result)
                         break
+                    except ProviderModelError as error:
+                        if error.details.retryable:
+                            retry_count += 1
+                        if (
+                            error.details.retryable
+                            and attempt + 1
+                            < self.retry_policy.max_provider_attempts
+                        ):
+                            if delay:
+                                self.sleeper(delay)
+                            delay *= self.retry_policy.multiplier
+                            continue
+                        return self._result(
+                            request.run_id,
+                            StopReason.PROVIDER_ERROR,
+                            steps,
+                            outputs,
+                            tracker,
+                            started_at,
+                            retry_count=retry_count,
+                            provider_error=error.details,
+                        )
                     except TransientModelError:
                         retry_count += 1
                         if attempt + 1 >= self.retry_policy.max_provider_attempts:
@@ -280,18 +304,20 @@ class BoundedAgentLoop:
         *,
         policy_denial: str | None = None,
         retry_count: int = 0,
+        provider_error: ProviderErrorDetails | None = None,
     ) -> AgentLoopResult:
         return AgentLoopResult(
-            run_id,
-            reason,
-            tuple(steps),
-            tuple(outputs),
-            tracker.usage(),
-            tracker.cost_microusd,
-            max(0.0, self.clock() - started_at),
-            policy_denial,
-            retry_count,
-            tracker.patch_attempts,
+            run_id=run_id,
+            stop_reason=reason,
+            model_steps=tuple(steps),
+            tool_outputs=tuple(outputs),
+            usage=tracker.usage(),
+            cost_microusd=tracker.cost_microusd,
+            elapsed_seconds=max(0.0, self.clock() - started_at),
+            policy_denial=policy_denial,
+            retry_count=retry_count,
+            patch_attempts=tracker.patch_attempts,
+            provider_error=provider_error,
         )
 
     @staticmethod

@@ -207,6 +207,18 @@ def execute_agent_loop(
             "cost_microusd": result.cost_microusd,
             "elapsed_seconds": result.elapsed_seconds,
             "retry_count": result.retry_count,
+            "provider_error": (
+                {
+                    "provider": result.provider_error.provider,
+                    "error_type": result.provider_error.error_type,
+                    "error_code": result.provider_error.error_code,
+                    "status_code": result.provider_error.status_code,
+                    "request_id": result.provider_error.request_id,
+                    "retryable": result.provider_error.retryable,
+                }
+                if result.provider_error is not None
+                else None
+            ),
             "policy_denial": result.policy_denial,
             "structured_output": structured_output,
         },

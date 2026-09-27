@@ -54,6 +54,14 @@ for cancellation, policy denial, invalid provider output, exhausted retries,
 normal completion, or approval. A model cannot increase these limits through a
 tool argument.
 
+Provider SDK failures cross the boundary only as sanitized structured evidence:
+provider, exception type, provider error code, HTTP status, request ID, and a
+retryable flag. Raw provider messages are excluded because they can contain
+request content or credentials. Temporary connection, timeout, rate, and server
+failures receive bounded retries. Known billing, credit, quota, and hard-spend
+errors stop immediately and remain classified as provider failures rather than
+invalid model output.
+
 Cost uses a model-pricing value supplied by the caller. This avoids silently
 changing historical benchmark math when provider prices change.
 
@@ -91,7 +99,8 @@ runs the bounded loop, records aggregate usage and stopping evidence, and
 creates a content-addressed diff. A non-empty patch then moves to `EVALUATING`;
 only the independent evaluator can move it to `AWAITING_APPROVAL`. Provider
 calls and evaluation commands renew the durable lease so another worker cannot
-claim an active run.
+claim an active run. The durable `agent_stopped` event includes the sanitized
+provider failure fields when a request never produces a model step.
 
 Generated caches such as `__pycache__`, `.pytest_cache`, and build output are
 excluded from source diffs. Unified patches are applied with their exact hunk
@@ -99,12 +108,11 @@ counts; Forge does not rewrite valid patch structure with Git recount mode.
 
 ## Remaining integration
 
-Forge still needs an approval action that replays the exact stored patch before
-GitHub publishing. Milestone 4 also requires a
-live run over the five private seed tasks with a pinned model, prompt, tool
-version, sandbox image, and pricing manifest. The deterministic private harness
-proves orchestration using answer patches; it deliberately makes no claim about
-model reasoning or task success.
+The remaining Milestone 4 exit gate is a successful pinned live-model run after
+the rest of the product is complete and API billing is explicitly enabled. The
+deterministic private harness proves orchestration across all twenty benchmark
+tasks using answer patches; it deliberately makes no claim about model reasoning
+or task success.
 
 ## References
 

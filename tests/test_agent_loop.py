@@ -14,6 +14,8 @@ from forge_agent_core.model_runtime import (
     BudgetLimits,
     ModelStepResult,
     PermanentModelError,
+    ProviderErrorDetails,
+    ProviderModelError,
     RetryPolicy,
     StopReason,
     TokenUsage,
@@ -341,6 +343,55 @@ class BoundedAgentLoopTests(unittest.TestCase):
             InMemoryIdempotencyLedger(),
         ).run(self.request())
         self.assertEqual(failed.stop_reason, StopReason.INVALID_OUTPUT)
+
+    def test_non_retryable_provider_error_stops_with_safe_details(self) -> None:
+        details = ProviderErrorDetails(
+            provider="openai",
+            error_type="RateLimitError",
+            error_code="credit_balance_exhausted",
+            status_code=429,
+            request_id="req-123",
+            retryable=False,
+        )
+        runtime = _ScriptedRuntime([ProviderModelError(details)])
+
+        result = BoundedAgentLoop(
+            runtime,
+            _RecordingExecutor(),
+            InMemoryIdempotencyLedger(),
+        ).run(self.request())
+
+        self.assertEqual(result.stop_reason, StopReason.PROVIDER_ERROR)
+        self.assertEqual(result.retry_count, 0)
+        self.assertEqual(result.provider_error, details)
+        self.assertEqual(runtime.calls, 1)
+
+    def test_retryable_provider_error_preserves_final_details(self) -> None:
+        details = ProviderErrorDetails(
+            provider="openai",
+            error_type="InternalServerError",
+            error_code="server_is_overloaded",
+            status_code=503,
+            request_id="req-503",
+            retryable=True,
+        )
+        runtime = _ScriptedRuntime(
+            [ProviderModelError(details), ProviderModelError(details)]
+        )
+
+        result = BoundedAgentLoop(
+            runtime,
+            _RecordingExecutor(),
+            InMemoryIdempotencyLedger(),
+            retry_policy=RetryPolicy(
+                max_provider_attempts=2,
+                initial_delay_seconds=0,
+            ),
+        ).run(self.request())
+
+        self.assertEqual(result.stop_reason, StopReason.PROVIDER_ERROR)
+        self.assertEqual(result.retry_count, 2)
+        self.assertEqual(result.provider_error, details)
 
 
 if __name__ == "__main__":

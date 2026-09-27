@@ -6,10 +6,10 @@ import unittest
 from forge_agent_core.model_runtime import (
     BudgetRemaining,
     ModelStepRequest,
+    ProviderModelError,
     StopReason,
     ToolOutput,
     ToolSpec,
-    TransientModelError,
 )
 from forge_agent_core.openai_runtime import (
     ModelPricing,
@@ -158,13 +158,40 @@ class OpenAIResponsesRuntimeTests(unittest.TestCase):
         self.assertEqual(sent["input"][0]["type"], "function_call_output")
         self.assertEqual(sent["input"][0]["call_id"], "call-1")
 
-    def test_provider_rate_limit_is_classified_as_transient(self) -> None:
+    def test_temporary_rate_limit_is_retryable_and_sanitized(self) -> None:
         class RateLimitError(Exception):
-            pass
+            status_code = 429
+            code = "slow_down"
+            request_id = "req-safe-123"
 
         runtime, _ = self.runtime([RateLimitError("slow down")])
-        with self.assertRaises(TransientModelError):
+        with self.assertRaises(ProviderModelError) as raised:
             runtime.run_step(self.request())
+        self.assertTrue(raised.exception.details.retryable)
+        self.assertEqual(raised.exception.details.error_code, "slow_down")
+        self.assertEqual(raised.exception.details.status_code, 429)
+        self.assertEqual(
+            raised.exception.details.request_id, "req-safe-123"
+        )
+
+    def test_exhausted_credit_is_not_retried_or_leaked(self) -> None:
+        class RateLimitError(Exception):
+            status_code = 429
+            body = {
+                "code": "credit_balance_exhausted",
+                "message": "secret-bearing provider detail",
+            }
+
+        runtime, _ = self.runtime(
+            [RateLimitError("secret-bearing provider detail")]
+        )
+        with self.assertRaises(ProviderModelError) as raised:
+            runtime.run_step(self.request())
+        self.assertFalse(raised.exception.details.retryable)
+        self.assertEqual(
+            raised.exception.details.error_code, "credit_balance_exhausted"
+        )
+        self.assertNotIn("secret-bearing", str(raised.exception))
 
 
 if __name__ == "__main__":

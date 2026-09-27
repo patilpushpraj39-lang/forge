@@ -13,6 +13,8 @@ from forge_agent_core import SqliteIdempotencyLedger
 from forge_agent_core.model_runtime import (
     BudgetLimits,
     ModelStepResult,
+    ProviderErrorDetails,
+    ProviderModelError,
     StopReason,
     TokenUsage,
     ToolCall,
@@ -70,6 +72,20 @@ class SlowCompletingRuntime:
                 "verification": ["Repository context inspected."],
                 "risks": [],
             },
+        )
+
+
+class CreditExhaustedRuntime:
+    def run_step(self, request):
+        raise ProviderModelError(
+            ProviderErrorDetails(
+                provider="openai",
+                error_type="RateLimitError",
+                error_code="credit_balance_exhausted",
+                status_code=429,
+                request_id="req-credit-123",
+                retryable=False,
+            )
         )
 
 
@@ -463,6 +479,40 @@ class WalkingSkeletonTests(unittest.TestCase):
 
         self.assertFalse(worker.is_alive())
         self.assertEqual(store.get_run(run_id)["state"], RunState.COMPLETED)
+
+    def test_provider_failure_persists_safe_diagnostics_without_retry(self) -> None:
+        store = RunStore(self.database)
+        created = store.create_run(
+            str(self.repository), "Inspect the README without changing it."
+        )
+
+        self.assertTrue(
+            run_once(
+                store,
+                worker_id="provider-error-worker",
+                model_runtime=CreditExhaustedRuntime(),
+                idempotency_ledger=SqliteIdempotencyLedger(self.database),
+            )
+        )
+
+        run_id = str(created["run_id"])
+        events = store.list_events(run_id)
+        stopped = next(
+            event for event in events if event["event_type"] == "agent_stopped"
+        )
+        self.assertEqual(store.get_run(run_id)["state"], RunState.FAILED)
+        self.assertEqual(stopped["payload"]["retry_count"], 0)
+        self.assertEqual(
+            stopped["payload"]["provider_error"],
+            {
+                "provider": "openai",
+                "error_type": "RateLimitError",
+                "error_code": "credit_balance_exhausted",
+                "status_code": 429,
+                "request_id": "req-credit-123",
+                "retryable": False,
+            },
+        )
 
     def test_agent_blocked_output_becomes_an_explicit_failure(self) -> None:
         store = RunStore(self.database)
