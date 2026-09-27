@@ -41,13 +41,16 @@ tagged reproduction remain.
   pricing snapshot, and refuses to freeze a dirty repository.
 - The baseline and two one-variable experiments are matrix-checked. One changes
   only the tool-call ceiling; the other changes only the patch-attempt ceiling.
+- A guarded executor verifies the frozen lock before constructing the runtime,
+  requires an exact maximum-cost confirmation, injects hidden checks only into
+  independent evaluation, and durably appends every completed task outcome.
 
 ## Local verification
 
 On 27 September 2026:
 
 - Benchmark reporting, export, and dashboard API contract tests: 13 passed.
-- Complete Python suite: 102 tests, 93 passed, 9 environment-dependent tests
+- Complete Python suite: 103 tests, 94 passed, 9 environment-dependent tests
   skipped.
 - Next.js type check and optimized production build: passed.
 - Browser verification: full-population rendering, category filtering,
@@ -62,7 +65,7 @@ On 27 September 2026:
   replayed their public checks successfully. This uses stored answer patches
   and is not a model-quality result.
 - Private benchmark checkpoint: `bb69833`.
-- Controlled experiment contract tests: 3 passed.
+- Experiment contract and execution-guard tests: 5 passed.
 - The baseline, tool-budget, and single-patch experiment locks verified against
   their recorded product and private benchmark revisions.
 - Diff whitespace validation: passed.
@@ -71,7 +74,8 @@ The dashboard tests use explicitly synthetic records. The private validation
 proves task construction and evaluation behavior, not autonomous model
 performance. Freezing the experiment inputs also makes no performance claim.
 No paid model calls have been made and no benchmark performance claim has been
-published.
+published. Baseline preflight is intentionally blocked until the optional
+OpenAI SDK and an API key are configured.
 
 ## Exit gates still open
 

@@ -52,7 +52,10 @@ sandbox can become release evidence after all reporting gates pass.
 
 ## Execution order
 
-1. Verify the frozen baseline lock and required credentials.
+1. Verify the frozen baseline lock and required credentials. The guarded
+   executor refuses dirty or revision-mismatched repositories, a missing SDK or
+   API key, a reused output directory, or a cost confirmation that does not
+   exactly equal the frozen ceiling.
 2. Execute every selected baseline task once and export every outcome.
 3. Diagnose infrastructure invalidations before interpreting solver failures.
 4. Execute the two one-variable experiments against the same task population.
@@ -64,3 +67,9 @@ sandbox can become release evidence after all reporting gates pass.
 If a source revision or contract field changes, the existing lock becomes
 invalid. A new lock and a new experiment identifier are required; previous and
 new results must not be aggregated as one configuration.
+
+The executor writes its lock copy, durable run database, content-addressed
+artifacts, per-task run index, append-only JSONL records, and final summary to a
+local ignored run directory. It never writes the API key to evidence. The
+current baseline preflight makes no model calls and reports two unmet local
+requirements: the optional OpenAI SDK and `OPENAI_API_KEY`.
