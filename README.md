@@ -96,10 +96,13 @@ event trail, computes solve-rate uncertainty plus cost/latency/failure metrics,
 emits content-addressed JSON and Markdown cards, and provides a source-backed
 failure-analysis dashboard with category/split filters and reproduction
 digests. The private `forge-private-v1` task set now contains 20 independently
-validated tasks: four per planned category and ten holdouts. This is benchmark
-construction evidence, not model performance. Controlled experiments and
-tagged reproduction remain. See the
-[benchmark-reporting architecture](docs/architecture/benchmark-reporting.md)
+validated tasks: four per planned category and ten holdouts. A frozen
+ten-task development baseline and two machine-checked, one-variable experiment
+contracts now pin the code, tasks, model configuration, budgets, sandbox, and
+pricing snapshot. This is benchmark and experiment-construction evidence, not
+model performance; live executions and tagged reproduction remain. See the
+[benchmark-reporting architecture](docs/architecture/benchmark-reporting.md),
+the [controlled-experiment architecture](docs/architecture/controlled-experiments.md),
 and [Milestone 7 progress record](docs/verification/milestone-7-progress.md).
 
 ## Product boundary
