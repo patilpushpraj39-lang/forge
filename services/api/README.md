@@ -14,3 +14,8 @@ with the Clerk public JWT key, authorized frontend origins, and
 `FORGE_REVIEWER_IDS` from `.env.example` to enable them. The API accepts only
 verified session tokens, derives the approval actor itself, and requires the
 same actor to publish an approval. It never persists bearer tokens.
+
+When `FORGE_BENCHMARK_RECORDS_PATH` points to reviewed JSONL evidence, the API
+revalidates and recomputes the latest benchmark summary for the failure-analysis
+dashboard. Category and split filters are applied to the original records, not
+to pre-aggregated percentages. The API never exposes the configured local path.

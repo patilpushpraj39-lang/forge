@@ -73,6 +73,26 @@ uses naive timestamps, or has evaluation events that disagree about their
 manifest. Pre-evaluation failures remain reportable with a null evaluation
 manifest while retaining the required task-manifest digest.
 
+## Failure-analysis dashboard
+
+The `/benchmarks` product route reads the same strict JSONL records through the
+API rather than maintaining a second analytics model. `GET /benchmarks/latest`
+revalidates the configured artifact, recomputes its canonical summary, and can
+apply category and split filters. Every headline card, comparison, failure bar,
+and task row uses that one selected population. Full-set release gates remain
+visibly separate and never change when a diagnostic filter is active.
+
+The source must be classified as `synthetic`, `development`, or `release`.
+Synthetic and development views carry an explicit non-release warning. A
+release classification is not presented as ready unless every encoded
+release-evidence gate passes. The interface also preserves unavailable, empty,
+and loading states, shows the Wilson interval instead of a point estimate
+alone, and exposes the benchmark, experiment, code, configuration, selected
+summary, and full-evidence digests needed to reproduce what is on screen.
+
+The checked-in dashboard fixture is deliberately synthetic and exists only for
+tests and visual verification. It is not Forge performance evidence.
+
 ## Usage
 
 ```powershell

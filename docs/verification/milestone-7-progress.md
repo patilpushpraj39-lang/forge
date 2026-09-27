@@ -1,7 +1,7 @@
 # Milestone 7 Progress: Benchmark and Hardening
 
-Status: reporting foundation complete locally; task expansion and experiments
-remain.
+Status: reporting and failure-analysis foundation complete locally; task
+expansion, experiments, and tagged reproduction remain.
 
 ## Implemented evidence
 
@@ -24,14 +24,25 @@ remain.
 - A durable-run exporter derives record metrics and verdicts from ordered Forge
   events, rejects conflicting or incomplete evidence, and keeps task/experiment
   metadata bound to versioned manifest digests.
+- A source-backed API and interactive dashboard recompute the selected
+  population for category and split filters, keep full-set release gates
+  separate, expose reproduction digests, and distinguish synthetic,
+  development, and release evidence.
+- Loading, unavailable, empty-selection, and no-failure states are explicit;
+  synthetic preview values are visibly prohibited from use as performance
+  claims.
 
 ## Local verification
 
 On 27 September 2026:
 
-- Benchmark reporting/export contract tests: 9 passed.
-- Complete Python suite: 97 tests, 88 passed, 9 environment-dependent tests
+- Benchmark reporting, export, and dashboard API contract tests: 13 passed.
+- Complete Python suite: 101 tests, 92 passed, 9 environment-dependent tests
   skipped.
+- Next.js type check and optimized production build: passed.
+- Browser verification: full-population rendering, category filtering,
+  impossible-filter empty state, full-set gate isolation, desktop layout, and
+  mobile overflow containment passed.
 - Diff whitespace validation: passed.
 
 The tests use explicitly synthetic records and do not constitute a benchmark
@@ -42,7 +53,6 @@ performance claim.
 - Expand the private benchmark from 5 to 20 balanced, independently validated
   tasks, including at least 10 unseen holdout tasks.
 - Execute the baseline and at least two controlled experiments.
-- Build the failure-analysis dashboard.
 - Reproduce the selected result from a tagged product revision and benchmark
   manifest.
 - Publish the verified metrics only after every release-evidence gate passes.

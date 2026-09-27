@@ -23,6 +23,7 @@ from forge_agent_core import (
     SourceSnapshot,
     create_run_store,
 )
+from forge_evaluation import BenchmarkRecord, load_benchmark_jsonl, summarize_benchmark
 from forge_publisher import (
     GitHubAppInstallationTokenProvider,
     GitHubCatalog,
@@ -73,9 +74,15 @@ def _configured_github_catalog() -> GitHubCatalog | None:
 
 github_catalog = _configured_github_catalog()
 app = FastAPI(title="Forge API", version="0.1.0-dev")
+allowed_web_origins = {
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+}
+if configured_web_origin := os.environ.get("FORGE_WEB_ORIGIN"):
+    allowed_web_origins.add(configured_web_origin)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[os.environ.get("FORGE_WEB_ORIGIN", "http://localhost:3000")],
+    allow_origins=sorted(allowed_web_origins),
     allow_credentials=False,
     allow_methods=["GET", "POST"],
     allow_headers=["authorization", "content-type"],
@@ -161,6 +168,86 @@ class CreateGitHubRunRequest(BaseModel):
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+def _benchmark_records() -> tuple[BenchmarkRecord, ...]:
+    configured_path = os.environ.get("FORGE_BENCHMARK_RECORDS_PATH")
+    if not configured_path:
+        raise HTTPException(
+            status_code=503, detail="benchmark evidence is not configured"
+        )
+    path = Path(configured_path).resolve()
+    if not path.is_file():
+        raise HTTPException(
+            status_code=503, detail="configured benchmark evidence does not exist"
+        )
+    if path.stat().st_size > 10_000_000:
+        raise HTTPException(status_code=413, detail="benchmark evidence is too large")
+    try:
+        with path.open("r", encoding="utf-8") as source:
+            records = load_benchmark_jsonl(source)
+    except (OSError, UnicodeError, ValueError) as error:
+        raise HTTPException(
+            status_code=503, detail=f"benchmark evidence is invalid: {error}"
+        ) from error
+    if not records:
+        raise HTTPException(status_code=503, detail="benchmark evidence is empty")
+    if len(records) > 1_000:
+        raise HTTPException(
+            status_code=413, detail="benchmark evidence exceeds 1000 records"
+        )
+    return records
+
+
+@app.get("/benchmarks/latest")
+def benchmark_dashboard(
+    category: str | None = Query(
+        default=None, pattern=r"^(?:frontend|backend|api|data|test)$"
+    ),
+    task_split: str | None = Query(
+        default=None,
+        alias="split",
+        pattern=r"^(?:development|holdout|public)$",
+    ),
+) -> dict[str, object]:
+    records = _benchmark_records()
+    try:
+        full_summary = summarize_benchmark(records)
+    except ValueError as error:
+        raise HTTPException(
+            status_code=503, detail=f"benchmark evidence is inconsistent: {error}"
+        ) from error
+    selected = tuple(
+        item
+        for item in records
+        if (category is None or item.category == category)
+        and (task_split is None or item.task_split == task_split)
+    )
+    filtered_summary = summarize_benchmark(selected) if selected else None
+    classification = os.environ.get(
+        "FORGE_BENCHMARK_SOURCE_CLASSIFICATION", "development"
+    ).strip().casefold()
+    if classification not in {"synthetic", "development", "release"}:
+        raise HTTPException(
+            status_code=503,
+            detail="benchmark source classification is invalid",
+        )
+    return {
+        "source": {
+            "classification": classification,
+            "record_count": len(records),
+        },
+        "filters": {"category": category, "split": task_split},
+        "available": {
+            "categories": sorted({item.category for item in records}),
+            "splits": sorted({str(item.task_split) for item in records}),
+        },
+        "summary": filtered_summary.to_dict() if filtered_summary else None,
+        "summary_digest": filtered_summary.digest if filtered_summary else None,
+        "full_summary": full_summary.to_dict(),
+        "full_summary_digest": full_summary.digest,
+        "records": [item.to_dict() for item in selected],
+    }
 
 
 def require_reviewer(request: Request) -> ReviewerPrincipal:

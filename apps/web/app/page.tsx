@@ -1,9 +1,11 @@
 import { ForgeConsole } from "./auth-console";
+import Link from "next/link";
 
 export default function HomePage() {
   return (
     <main>
       <header className="hero">
+        <nav className="home-nav"><Link href="/benchmarks">Open failure analysis →</Link></nav>
         <p className="eyebrow">Forge milestone 6</p>
         <h1>Engineer, verify, approve.</h1>
         <p className="lede">
