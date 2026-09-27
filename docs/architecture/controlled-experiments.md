@@ -71,5 +71,6 @@ new results must not be aggregated as one configuration.
 The executor writes its lock copy, durable run database, content-addressed
 artifacts, per-task run index, append-only JSONL records, and final summary to a
 local ignored run directory. It never writes the API key to evidence. The
-current baseline preflight makes no model calls and reports two unmet local
-requirements: the optional OpenAI SDK and `OPENAI_API_KEY`.
+current baseline preflight makes no model calls. The optional OpenAI SDK is
+installed and detected; `OPENAI_API_KEY` is the only unmet preflight
+requirement.

@@ -65,7 +65,8 @@ On 27 September 2026:
   replayed their public checks successfully. This uses stored answer patches
   and is not a model-quality result.
 - Private benchmark checkpoint: `bb69833`.
-- Experiment contract and execution-guard tests: 5 passed.
+- Experiment contract and execution tests: 6 passed, including an offline
+  task-to-worker-to-durable-record proof with no provider call.
 - The baseline, tool-budget, and single-patch experiment locks verified against
   their recorded product and private benchmark revisions.
 - Diff whitespace validation: passed.
@@ -74,8 +75,8 @@ The dashboard tests use explicitly synthetic records. The private validation
 proves task construction and evaluation behavior, not autonomous model
 performance. Freezing the experiment inputs also makes no performance claim.
 No paid model calls have been made and no benchmark performance claim has been
-published. Baseline preflight is intentionally blocked until the optional
-OpenAI SDK and an API key are configured.
+published. The optional OpenAI SDK is installed; baseline preflight is
+intentionally blocked until an API key is configured.
 
 ## Exit gates still open
 
