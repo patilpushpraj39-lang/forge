@@ -38,6 +38,16 @@ configured per-task ceiling, each ten-task run has a maximum recorded model
 cost of 20,000,000 microdollars ($20). This is a safety ceiling, not an expected
 cost or a spend authorization.
 
+## Live canary
+
+Before the baseline, a separate `canary-development-v1` contract selects one
+development task and caps recorded model cost at 500,000 microdollars ($0.50).
+It uses the same pinned model, reasoning effort, service tier, prompt, tools,
+and local execution path, but tighter token, time, step, tool, and patch
+budgets. Its purpose is to verify credentials and live provider-to-evaluator
+wiring. It is not part of the controlled comparison and is never a benchmark
+performance claim.
+
 ## Evidence boundary
 
 The current lock files record and verify the exact product and private
@@ -52,16 +62,18 @@ sandbox can become release evidence after all reporting gates pass.
 
 ## Execution order
 
-1. Verify the frozen baseline lock and required credentials. The guarded
+1. Verify and execute the one-task canary after explicit $0.50 ceiling
+   approval.
+2. Verify the frozen baseline lock and required credentials. The guarded
    executor refuses dirty or revision-mismatched repositories, a missing SDK or
    API key, a reused output directory, or a cost confirmation that does not
    exactly equal the frozen ceiling.
-2. Execute every selected baseline task once and export every outcome.
-3. Diagnose infrastructure invalidations before interpreting solver failures.
-4. Execute the two one-variable experiments against the same task population.
-5. Select a configuration from development evidence without reading holdout
+3. Execute every selected baseline task once and export every outcome.
+4. Diagnose infrastructure invalidations before interpreting solver failures.
+5. Execute the two one-variable experiments against the same task population.
+6. Select a configuration from development evidence without reading holdout
    outcomes.
-6. Tag the product revision, run the untouched holdout set in Docker, and
+7. Tag the product revision, run the untouched holdout set in Docker, and
    reproduce the report from saved records.
 
 If a source revision or contract field changes, the existing lock becomes

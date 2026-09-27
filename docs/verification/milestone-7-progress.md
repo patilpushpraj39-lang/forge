@@ -44,6 +44,8 @@ tagged reproduction remain.
 - A guarded executor verifies the frozen lock before constructing the runtime,
   requires an exact maximum-cost confirmation, injects hidden checks only into
   independent evaluation, and durably appends every completed task outcome.
+- A separate one-task live canary has a $0.50 ceiling and is explicitly
+  excluded from benchmark performance claims.
 
 ## Local verification
 
@@ -65,7 +67,7 @@ On 27 September 2026:
   replayed their public checks successfully. This uses stored answer patches
   and is not a model-quality result.
 - Private benchmark checkpoint: `bb69833`.
-- Experiment contract and execution tests: 6 passed, including an offline
+- Experiment contract and execution tests: 7 passed, including an offline
   task-to-worker-to-durable-record proof with no provider call.
 - The baseline, tool-budget, and single-patch experiment locks verified against
   their recorded product and private benchmark revisions.
@@ -80,6 +82,7 @@ intentionally blocked until an API key is configured.
 
 ## Exit gates still open
 
+- Execute the low-cost live canary before the baseline.
 - Execute the frozen baseline and both controlled experiments.
 - Reproduce the selected result from a tagged product revision and benchmark
   manifest.
