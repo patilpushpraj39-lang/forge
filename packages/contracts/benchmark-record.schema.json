@@ -46,7 +46,7 @@
       "pattern": "^[0-9a-f]{40}$"
     },
     "task_id": {
-      "$ref": "#/$defs/identifier"
+      "$ref": "#/$defs/task_identifier"
     },
     "task_version": {
       "type": "string",
@@ -155,6 +155,10 @@
     "identifier": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+    },
+    "task_identifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$"
     },
     "sha256": {
       "type": "string",

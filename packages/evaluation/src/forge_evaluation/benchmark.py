@@ -11,6 +11,7 @@ from typing import Any, Iterable, Mapping, Sequence
 
 
 _IDENTIFIER = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
+_TASK_IDENTIFIER = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,63}$")
 _SHA1 = re.compile(r"^[0-9a-f]{40}$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _Z_95 = 1.959963984540054
@@ -62,10 +63,14 @@ class BenchmarkRecord:
             value = getattr(self, name)
             if not isinstance(value, str) or not value or len(value) > 128:
                 raise ValueError(f"{name} must contain 1 to 128 characters")
-        for name in ("experiment_id", "task_id", "category", "language"):
+        for name in ("experiment_id", "category", "language"):
             value = getattr(self, name)
             if not isinstance(value, str) or not _IDENTIFIER.fullmatch(value):
                 raise ValueError(f"{name} must be a lowercase identifier")
+        if not isinstance(self.task_id, str) or not _TASK_IDENTIFIER.fullmatch(
+            self.task_id
+        ):
+            raise ValueError("task_id must be an identifier")
         if self.category not in _CATEGORIES:
             raise ValueError("category is not part of the version 1 benchmark taxonomy")
         if not isinstance(self.task_split, BenchmarkSplit):

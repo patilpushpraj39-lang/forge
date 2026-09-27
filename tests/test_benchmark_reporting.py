@@ -58,6 +58,11 @@ class BenchmarkReportingTests(unittest.TestCase):
             tool_calls=tool_calls,
         )
 
+    def test_private_benchmark_task_identifier_is_supported(self) -> None:
+        record = self.record("TASK-001")
+
+        self.assertEqual(record.task_id, "TASK-001")
+
     def test_summary_separates_solver_infrastructure_and_task_failures(self) -> None:
         records = (
             self.record("task-a", category="frontend"),
