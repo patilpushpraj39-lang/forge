@@ -20,6 +20,7 @@ from forge_agent_core import (
     PublicationError,
     RepositoryTarget,
     RunNotFoundError,
+    RunStoreProtocol,
     SourceSnapshot,
     create_run_store,
 )
@@ -35,8 +36,10 @@ from forge_publisher import (
 from forge_sandbox_controller import (
     ArtifactNotFoundError,
     ArtifactRef,
+    SandboxController,
     create_sandbox_controller,
 )
+from forge_worker import OFFLINE_DEMO_OBJECTIVE, execute_offline_demo
 
 from .auth import (
     ReviewerAuthenticationError,
@@ -394,6 +397,68 @@ def create_run(request: CreateRunRequest) -> dict[str, object]:
     )
 
 
+def _offline_demo_fixture_path() -> Path:
+    configured = os.environ.get("FORGE_OFFLINE_DEMO_FIXTURE_PATH")
+    if configured:
+        path = Path(configured).expanduser().resolve()
+    else:
+        repository_root = Path(__file__).resolve().parents[4]
+        path = repository_root / "evals" / "public-tasks" / "status-normalizer"
+    if not path.is_dir():
+        raise RuntimeError("offline demo fixture is unavailable")
+    return path
+
+
+@app.post("/demo/runs", status_code=201)
+def create_offline_demo_run() -> dict[str, object]:
+    """Execute the public deterministic scenario through the real local workflow."""
+    try:
+        created = store.create_run(
+            str(_offline_demo_fixture_path()),
+            OFFLINE_DEMO_OBJECTIVE,
+            BudgetLimits(
+                total_tokens=1,
+                cost_microusd=1,
+                wall_seconds=60,
+                model_steps=10,
+                tool_calls=20,
+                patch_attempts=2,
+            ),
+        )
+        run_id = str(created["run_id"])
+        run = execute_offline_demo(store, run_id, controller)
+        events = store.list_events(run_id)
+        review = _build_run_review(run_id, store, controller)
+    except Exception as error:
+        raise HTTPException(
+            status_code=500,
+            detail=f"offline demo failed: {type(error).__name__}",
+        ) from error
+
+    agent_stopped = next(
+        (
+            event["payload"]
+            for event in events
+            if event["event_type"] == "agent_stopped"
+        ),
+        {},
+    )
+    return {
+        "mode": "local_deterministic",
+        "run": run,
+        "events": events,
+        "review": review,
+        "safety": {
+            "provider": "offline",
+            "model": "forge-deterministic-demo-v1",
+            "model_calls": 0,
+            "network_requests": 0,
+            "cost_microusd": int(agent_stopped.get("cost_microusd", 0)),
+            "github_writes": 0,
+        },
+    }
+
+
 @app.get("/runs/{run_id}")
 def get_run(run_id: str) -> dict[str, object]:
     try:
@@ -415,8 +480,16 @@ def list_events(
 
 @app.get("/runs/{run_id}/review")
 def get_run_review(run_id: str) -> dict[str, object]:
+    return _build_run_review(run_id, store, controller)
+
+
+def _build_run_review(
+    run_id: str,
+    selected_store: RunStoreProtocol,
+    selected_controller: SandboxController,
+) -> dict[str, object]:
     try:
-        run = store.get_run(run_id)
+        run = selected_store.get_run(run_id)
     except RunNotFoundError as error:
         raise HTTPException(status_code=404, detail="run not found") from error
     patch_hash = run.get("evaluated_patch_hash")
@@ -427,7 +500,7 @@ def get_run_review(run_id: str) -> dict[str, object]:
     started: dict[str, object] | None = None
     completed: dict[str, object] | None = None
     changed_paths: list[str] = []
-    for event in store.list_events(run_id):
+    for event in selected_store.list_events(run_id):
         payload = event["payload"]
         if event["event_type"] == "evaluation_started":
             started = payload
@@ -455,7 +528,9 @@ def get_run_review(run_id: str) -> dict[str, object]:
         )
         if patch_ref.sha256 != patch_hash:
             raise ValueError("patch hash mismatch")
-        patch = controller.read_artifact(patch_ref, max_bytes=1_000_000).decode(
+        patch = selected_controller.read_artifact(
+            patch_ref, max_bytes=1_000_000
+        ).decode(
             "utf-8", errors="strict"
         )
     except (ArtifactNotFoundError, KeyError, TypeError, ValueError, UnicodeError) as error:

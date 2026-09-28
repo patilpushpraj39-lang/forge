@@ -21,7 +21,9 @@ const requiredFiles = [
   "packages/contracts/run-event.schema.json",
   "evals/public-tasks/README.md",
   "apps/web/app/demo/page.tsx",
-  "apps/web/app/demo/offline-demo.tsx"
+  "apps/web/app/demo/offline-demo.tsx",
+  "evals/public-tasks/status-normalizer/status.py",
+  "evals/public-tasks/status-normalizer/test_status.py"
 ];
 
 const failures = [];

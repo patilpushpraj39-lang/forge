@@ -535,6 +535,83 @@ class RunStore:
             connection.commit()
         return self.get_run(run_id)
 
+    def claim_run(
+        self, run_id: str, worker_id: str, lease_seconds: float = 30
+    ) -> dict[str, Any] | None:
+        """Claim one known run without consuming an unrelated queued run."""
+        expires_at = expiry_iso(lease_seconds)
+        claimed_at = now_iso()
+        with self._connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            self._finalize_abandoned_cancellations(connection, claimed_at)
+            row = connection.execute(
+                """
+                SELECT * FROM runs
+                WHERE run_id = ?
+                  AND cancellation_requested_at IS NULL
+                  AND (
+                    state = ?
+                    OR (
+                      state IN (?, ?, ?)
+                      AND lease_expires_at IS NOT NULL
+                      AND lease_expires_at <= ?
+                    )
+                  )
+                LIMIT 1
+                """,
+                (
+                    run_id,
+                    RunState.CREATED,
+                    RunState.SNAPSHOTTING,
+                    RunState.EXECUTING,
+                    RunState.EVALUATING,
+                    claimed_at,
+                ),
+            ).fetchone()
+            if row is None:
+                connection.commit()
+                return None
+
+            previous_state = RunState(row["state"])
+            previous_owner = row["lease_owner"]
+            attempt = int(row["attempt"]) + 1
+            connection.execute(
+                """
+                UPDATE runs
+                SET state = ?, attempt = ?, lease_owner = ?, lease_expires_at = ?,
+                    updated_at = ?
+                WHERE run_id = ?
+                """,
+                (
+                    RunState.SNAPSHOTTING,
+                    attempt,
+                    worker_id,
+                    expires_at,
+                    claimed_at,
+                    run_id,
+                ),
+            )
+            if previous_state == RunState.CREATED:
+                event_type = "state_changed"
+                payload = {
+                    "from_state": RunState.CREATED,
+                    "to_state": RunState.SNAPSHOTTING,
+                    "worker_id": worker_id,
+                    "attempt": attempt,
+                }
+            else:
+                event_type = "lease_recovered"
+                payload = {
+                    "from_state": previous_state,
+                    "to_state": RunState.SNAPSHOTTING,
+                    "previous_worker_id": previous_owner,
+                    "worker_id": worker_id,
+                    "attempt": attempt,
+                }
+            self._append_event(connection, run_id, event_type, "worker", payload)
+            connection.commit()
+        return self.get_run(run_id)
+
     def renew_lease(
         self, run_id: str, worker_id: str, lease_seconds: float = 30
     ) -> dict[str, Any]:

@@ -72,10 +72,53 @@ class SandboxIntegrityTests(unittest.TestCase):
         self.assertEqual(first_diff.changed_paths, ("app.py",))
         self.assertEqual(second_diff.diff_hash, first_diff.diff_hash)
         self.assertEqual(replay.snapshot_hash, sandbox.snapshot_hash)
+        changed_lines = [
+            line
+            for line in first_content.splitlines()
+            if line.startswith((b"+", b"-"))
+            and not line.startswith((b"+++", b"---"))
+        ]
+        self.assertEqual(
+            changed_lines,
+            [b"-    return 1", b"+    return 42"],
+        )
         self.assertEqual(
             (self.repository / "app.py").read_text(encoding="utf-8"),
             "def answer():\n    return 1\n",
         )
+
+    def test_patch_preserves_lf_and_reports_only_the_changed_line(self) -> None:
+        source = self.repository / "lf_source.py"
+        source.write_bytes(b"def value():\n    return 1\n")
+        patch = (
+            "--- a/lf_source.py\n"
+            "+++ b/lf_source.py\n"
+            "@@ -1,2 +1,2 @@\n"
+            " def value():\n"
+            "-    return 1\n"
+            "+    return 2\n"
+        ).encode("utf-8")
+        sandbox = self.controller.create(self.repository)
+        try:
+            self.controller.apply_patch(sandbox.sandbox_id, patch)
+            diff = self.controller.diff(sandbox.sandbox_id)
+            content = self.controller.read_artifact(
+                diff.artifact, max_bytes=10_000
+            )
+        finally:
+            self.controller.destroy(sandbox.sandbox_id)
+
+        changed_lines = [
+            line
+            for line in content.splitlines()
+            if line.startswith((b"+", b"-"))
+            and not line.startswith((b"+++", b"---"))
+        ]
+        self.assertEqual(
+            changed_lines,
+            [b"-    return 1", b"+    return 2"],
+        )
+        self.assertNotIn(b"\r\n", content)
 
     def test_snapshot_artifact_is_deterministic_and_survives_destroy(self) -> None:
         first = self.controller.create(self.repository)

@@ -66,6 +66,35 @@ class ApiRunContractTests(unittest.TestCase):
                 budgets={"cost_microusd": 100_000_001},
             )
 
+    def test_offline_demo_uses_real_workflow_without_provider_cost(self) -> None:
+        response = api_main.create_offline_demo_run()
+
+        self.assertEqual(response["mode"], "local_deterministic")
+        self.assertEqual(response["run"]["state"], RunState.AWAITING_APPROVAL)
+        self.assertEqual(response["safety"]["provider"], "offline")
+        self.assertEqual(response["safety"]["model_calls"], 0)
+        self.assertEqual(response["safety"]["network_requests"], 0)
+        self.assertEqual(response["safety"]["cost_microusd"], 0)
+        self.assertEqual(response["safety"]["github_writes"], 0)
+        self.assertIn(
+            "+    return value.strip().lower()",
+            response["review"]["patch"],
+        )
+        self.assertEqual(len(response["review"]["checks"]), 4)
+        self.assertTrue(
+            all(
+                item["status"] == "passed"
+                for item in response["review"]["checks"]
+            )
+        )
+        event_types = [item["event_type"] for item in response["events"]]
+        self.assertIn("snapshot_ready", event_types)
+        self.assertIn("repository_indexed", event_types)
+        self.assertIn("agent_started", event_types)
+        self.assertIn("patch_ready", event_types)
+        self.assertIn("evaluation_completed", event_types)
+        self.assertEqual(event_types[-1], "workspace_destroyed")
+
     def test_api_records_repository_approval_and_publication_contract(self) -> None:
         reviewer = ReviewerPrincipal(
             "clerk:user_reviewer_1", "user_reviewer_1", "clerk"

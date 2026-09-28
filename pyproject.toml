@@ -22,3 +22,4 @@ forge-evaluation = { workspace = true }
 forge-sandbox-controller = { workspace = true }
 forge-repo-intelligence = { workspace = true }
 forge-publisher = { workspace = true }
+forge-worker = { workspace = true }

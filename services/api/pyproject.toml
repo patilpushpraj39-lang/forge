@@ -9,6 +9,7 @@ dependencies = [
   "forge-evaluation==0.0.0",
   "forge-publisher==0.0.0",
   "forge-sandbox-controller==0.0.0",
+  "forge-worker==0.0.0",
   "uvicorn[standard]>=0.35,<1",
 ]
 

@@ -6,121 +6,241 @@ import { useEffect, useMemo, useState } from "react";
 
 type Decision = "approved" | "rejected" | null;
 
+type RunEvent = {
+  event_id: string;
+  run_id: string;
+  sequence: number;
+  schema_version: number;
+  event_type: string;
+  occurred_at: string;
+  actor: string;
+  payload: Record<string, unknown>;
+};
+
+type DemoCheck = {
+  check_id: string;
+  kind: string;
+  status: string;
+  required: boolean;
+};
+
+type DemoResponse = {
+  mode: "local_deterministic";
+  run: { run_id: string; state: string };
+  events: RunEvent[];
+  review: {
+    patch: string;
+    patch_hash: string;
+    verdict_hash: string;
+    verdict: string;
+    changed_paths: string[];
+    checks: DemoCheck[];
+  };
+  safety: {
+    provider: "offline";
+    model: string;
+    model_calls: number;
+    network_requests: number;
+    cost_microusd: number;
+    github_writes: number;
+  };
+};
+
 type DemoStage = {
   title: string;
-  event: string;
+  event: RunEvent;
   description: string;
   evidence: string;
 };
 
-const demoStages: DemoStage[] = [
-  {
-    title: "Snapshot repository",
-    event: "source.snapshot.created",
-    description: "Pin a read-only source revision before any investigation begins.",
-    evidence: "demo/status-normalizer @ 8f31a2c"
-  },
-  {
-    title: "Index relevant code",
-    event: "repository.index.completed",
-    description: "Map the small fixture and select the function related to the task.",
-    evidence: "3 files indexed · status.py selected"
-  },
-  {
-    title: "Prepare bounded context",
-    event: "agent.context.prepared",
-    description: "Construct the exact context an engineering agent would receive.",
-    evidence: "task + source + public test · no hidden tests"
-  },
-  {
-    title: "Reproduce failure",
-    event: "test.public.failed",
-    description: "Confirm the existing implementation rejects whitespace and mixed case.",
-    evidence: "1 failed · expected active, received ' Active '"
-  },
-  {
-    title: "Apply candidate patch",
-    event: "patch.candidate.created",
-    description: "Apply a minimal change inside the simulated isolated workspace.",
-    evidence: "1 file changed · 1 insertion · 1 deletion"
-  },
-  {
-    title: "Verify independently",
-    event: "evaluation.completed",
-    description: "Replay the checks as an evaluator, separate from patch creation.",
-    evidence: "4/4 checks passed · regression free"
-  },
-  {
-    title: "Wait for human decision",
-    event: "review.requested",
-    description: "Freeze the exact patch and evidence until a reviewer decides.",
-    evidence: "GitHub write blocked · approval required"
+const apiBase = process.env.NEXT_PUBLIC_FORGE_API_URL ?? "http://localhost:8000";
+
+function eventByType(events: RunEvent[], eventType: string): RunEvent {
+  const event = events.find((item) => item.event_type === eventType);
+  if (!event) throw new Error(`Backend evidence is missing ${eventType}`);
+  return event;
+}
+
+function approvalEvent(events: RunEvent[]): RunEvent {
+  const event = events.find(
+    (item) => item.event_type === "state_changed" && item.payload.to_state === "AWAITING_APPROVAL"
+  );
+  if (!event) throw new Error("Backend evidence never reached human review");
+  return event;
+}
+
+function buildStages(data: DemoResponse): DemoStage[] {
+  const created = eventByType(data.events, "run_created");
+  const snapshot = eventByType(data.events, "snapshot_ready");
+  const indexed = eventByType(data.events, "repository_indexed");
+  const agent = eventByType(data.events, "agent_started");
+  const patch = eventByType(data.events, "patch_ready");
+  const evaluation = eventByType(data.events, "evaluation_completed");
+  const awaiting = approvalEvent(data.events);
+  const brief = indexed.payload.brief as Record<string, unknown> | undefined;
+
+  return [
+    {
+      title: "Create durable run",
+      event: created,
+      description: "Persist the objective and hard budgets before work begins.",
+      evidence: `${data.run.run_id.slice(0, 8)} · durable SQLite record`
+    },
+    {
+      title: "Snapshot repository",
+      event: snapshot,
+      description: "Copy the public fixture into an isolated, immutable workspace.",
+      evidence: `${String(snapshot.payload.file_count)} files · ${String(snapshot.payload.snapshot_hash).slice(0, 12)}`
+    },
+    {
+      title: "Index relevant code",
+      event: indexed,
+      description: "Build a repository manifest and select objective-relevant context.",
+      evidence: `${String(brief?.indexed_file_count ?? "?")} indexed files · Python fixture`
+    },
+    {
+      title: "Execute bounded tool loop",
+      event: agent,
+      description: "Reproduce the test, apply the checksum-bound patch, and rerun verification.",
+      evidence: `${String(agent.payload.context_characters)} context characters · offline runtime`
+    },
+    {
+      title: "Capture candidate patch",
+      event: patch,
+      description: "Store the exact diff as a content-addressed artifact.",
+      evidence: `${data.review.changed_paths.length} file changed · ${data.review.patch_hash.slice(0, 12)}`
+    },
+    {
+      title: "Verify independently",
+      event: evaluation,
+      description: "Rebuild from the original snapshot and evaluate the patch separately.",
+      evidence: `${data.review.checks.length}/${data.review.checks.length} checks passed · ${data.review.verdict}`
+    },
+    {
+      title: "Wait for human decision",
+      event: awaiting,
+      description: "Freeze the verified evidence until a reviewer decides.",
+      evidence: `${data.run.state} · GitHub write blocked`
+    }
+  ];
+}
+
+function eventEvidence(event: RunEvent): string {
+  const payload = event.payload;
+  if (event.event_type === "state_changed") {
+    return `${String(payload.from_state)} → ${String(payload.to_state)}`;
   }
-];
+  if (event.event_type === "snapshot_ready") {
+    return `${String(payload.file_count)} files · ${String(payload.snapshot_hash).slice(0, 12)}`;
+  }
+  if (event.event_type === "repository_indexed") {
+    const brief = payload.brief as Record<string, unknown> | undefined;
+    return `${String(brief?.indexed_file_count ?? "?")} files indexed`;
+  }
+  if (event.event_type === "agent_started") {
+    return `${String(payload.context_characters)} context characters`;
+  }
+  if (event.event_type === "agent_stopped") {
+    return `${String(payload.tool_calls)} tools · ${String(payload.input_tokens)} input tokens · $0.00`;
+  }
+  if (event.event_type === "patch_ready") {
+    return `${String((payload.changed_paths as unknown[] | undefined)?.length ?? 0)} file changed`;
+  }
+  if (event.event_type === "evaluation_completed") {
+    return `${String((payload.checks as unknown[] | undefined)?.length ?? 0)} checks · ${String(payload.verdict)}`;
+  }
+  if (event.event_type === "workspace_destroyed") return "Isolated workspace removed";
+  return event.actor;
+}
 
-const checks = [
-  ["Public regression", "Passed"],
-  ["Acceptance smoke", "Passed"],
-  ["Patch policy", "Passed"],
-  ["Clean replay", "Passed"]
-] as const;
+function readableLabel(value: string): string {
+  return value.replaceAll("_", " ").replace(/\b\w/g, (character) => character.toUpperCase());
+}
 
-const patchLines = [
-  { kind: "meta", value: "diff --git a/status.py b/status.py" },
-  { kind: "meta", value: "--- a/status.py" },
-  { kind: "meta", value: "+++ b/status.py" },
-  { kind: "meta", value: "@@ -1,2 +1,2 @@" },
-  { kind: "plain", value: " def normalize_status(value: str) -> str:" },
-  { kind: "remove", value: "-    return value" },
-  { kind: "add", value: "+    return value.strip().lower()" }
-] as const;
+async function responseJson(response: Response): Promise<DemoResponse> {
+  if (response.ok) return (await response.json()) as DemoResponse;
+  let message = `Local API returned ${response.status}`;
+  try {
+    const payload = (await response.json()) as { detail?: string };
+    if (payload.detail) message = payload.detail;
+  } catch {
+    // The status is still useful when the server did not return JSON.
+  }
+  throw new Error(message);
+}
 
 export function OfflineDemo() {
   const [activeStage, setActiveStage] = useState(-1);
   const [running, setRunning] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [decision, setDecision] = useState<Decision>(null);
+  const [data, setData] = useState<DemoResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const complete = activeStage === demoStages.length - 1;
-  const visibleEvents = useMemo(
-    () => demoStages.slice(0, activeStage + 1).reverse(),
-    [activeStage]
-  );
+  const stages = useMemo(() => (data ? buildStages(data) : []), [data]);
+  const complete = stages.length > 0 && activeStage === stages.length - 1;
+  const visibleEvents = useMemo(() => {
+    if (!data || activeStage < 0) return [];
+    if (complete) return [...data.events].reverse();
+    const sequence = stages[activeStage]?.event.sequence ?? 0;
+    return data.events.filter((event) => event.sequence <= sequence).reverse();
+  }, [activeStage, complete, data, stages]);
 
   useEffect(() => {
     if (!running) return;
-    if (activeStage >= demoStages.length - 1) {
+    if (activeStage >= stages.length - 1) {
       setRunning(false);
       return;
     }
-
     const timer = window.setTimeout(() => {
       setActiveStage((current) => current + 1);
-    }, 650);
-
+    }, 520);
     return () => window.clearTimeout(timer);
-  }, [activeStage, running]);
+  }, [activeStage, running, stages.length]);
 
-  function startDemo() {
+  async function startDemo() {
     setDecision(null);
-    setActiveStage(0);
-    setRunning(true);
+    setData(null);
+    setError(null);
+    setActiveStage(-1);
+    setRunning(false);
+    setLoading(true);
+    try {
+      const response = await fetch(`${apiBase}/demo/runs`, { method: "POST" });
+      const payload = await responseJson(response);
+      buildStages(payload);
+      setData(payload);
+      setActiveStage(0);
+      setRunning(true);
+    } catch (problem) {
+      setError(problem instanceof Error ? problem.message : "The local API could not run the demo.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   function resetDemo() {
     setRunning(false);
+    setLoading(false);
     setActiveStage(-1);
     setDecision(null);
+    setData(null);
+    setError(null);
   }
 
   const status = decision
     ? decision === "approved"
       ? "Approved locally"
       : "Rejected locally"
-    : running
-      ? "Simulating run"
-      : complete
-        ? "Awaiting your review"
-        : "Ready to start";
+    : loading
+      ? "Executing real workflow"
+      : running
+        ? "Replaying durable evidence"
+        : complete
+          ? "Awaiting your review"
+          : "Ready to start";
+
+  const patchLines = data?.review.patch.trimEnd().split("\n") ?? [];
 
   return (
     <main className="demo-page">
@@ -134,11 +254,11 @@ export function OfflineDemo() {
 
       <header className="demo-header">
         <div>
-          <p className="eyebrow">Free product tour</p>
-          <h1>See the control loop. Spend nothing.</h1>
+          <p className="eyebrow">Free backend-driven demo</p>
+          <h1>See the real control loop. Spend nothing.</h1>
           <p className="lede">
-            Walk through a deterministic example of Forge investigating, patching,
-            verifying, and requesting approval. Everything stays in this browser.
+            Run Forge&apos;s actual local store, sandbox, tool loop, artifact pipeline,
+            and independent evaluator with a deterministic runtime instead of a paid model.
           </p>
         </div>
         <div className="demo-trust-card">
@@ -152,36 +272,37 @@ export function OfflineDemo() {
 
       <section className="demo-safety-strip" aria-label="Offline demo guarantees">
         <div><strong>$0.00</strong><span>API spend</span></div>
-        <div><strong>0</strong><span>model calls</span></div>
-        <div><strong>0</strong><span>network requests</span></div>
+        <div><strong>{data?.safety.model_calls ?? 0}</strong><span>model calls</span></div>
+        <div><strong>{data?.safety.network_requests ?? 0}</strong><span>external requests</span></div>
         <div><strong>Blocked</strong><span>GitHub writes</span></div>
       </section>
 
       <p className="demo-disclosure">
-        <strong>What this is:</strong> a fixed, front-end product tour using a retired
-        public smoke example. It demonstrates the workflow, not AI quality or benchmark performance.
+        <strong>What this is:</strong> a real local Forge run against a retired public
+        smoke fixture. The runtime follows fixed scripted steps, so this proves the
+        engineering workflow—not AI quality or benchmark performance.
       </p>
 
       <section className="demo-workspace">
         <div className="demo-run-panel">
           <div className="demo-panel-heading">
             <div>
-              <span className="label">Prepared task</span>
+              <span className="label">Public smoke task</span>
               <h2>Normalize user-entered status strings</h2>
             </div>
-            <span className={`demo-status ${running ? "is-running" : ""}`} aria-live="polite">
+            <span className={`demo-status ${running || loading ? "is-running" : ""}`} aria-live="polite">
               {status}
             </span>
           </div>
 
           <div className="demo-task-card">
             <div>
-              <span>Repository</span>
-              <strong>forge-demo/status-normalizer</strong>
+              <span>Execution</span>
+              <strong>Real local backend</strong>
             </div>
             <div>
-              <span>Fixture</span>
-              <strong>Retired public smoke</strong>
+              <span>Runtime</span>
+              <strong>Deterministic · zero tokens</strong>
             </div>
             <p>
               Make status validation accept surrounding whitespace and mixed-case input
@@ -189,27 +310,46 @@ export function OfflineDemo() {
             </p>
           </div>
 
+          {error ? (
+            <div className="demo-backend-error" role="alert">
+              <strong>Local API needs attention</strong>
+              <p>{error}</p>
+              <span>Restart the Forge API, then choose “Try backend again.”</span>
+            </div>
+          ) : null}
+
           <div className="demo-actions">
-            <button type="button" onClick={startDemo} disabled={running}>
-              {activeStage < 0 ? "Start offline demo" : "Replay demo"}
+            <button type="button" onClick={startDemo} disabled={running || loading}>
+              {loading ? "Executing locally…" : error ? "Try backend again" : data ? "Run another real demo" : "Run real offline demo"}
             </button>
-            <button type="button" className="secondary" onClick={resetDemo} disabled={running && activeStage === 0}>
+            <button type="button" className="secondary" onClick={resetDemo} disabled={loading}>
               Reset
             </button>
           </div>
 
           <ol className="demo-stage-list">
-            {demoStages.map((stage, index) => {
-              const state = index < activeStage ? "complete" : index === activeStage ? "active" : "pending";
+            {(stages.length ? stages : [
+              "Create durable run",
+              "Snapshot repository",
+              "Index relevant code",
+              "Execute bounded tool loop",
+              "Capture candidate patch",
+              "Verify independently",
+              "Wait for human decision"
+            ]).map((stage, index) => {
+              const populated = typeof stage !== "string";
+              const state = populated
+                ? index < activeStage ? "complete" : index === activeStage ? "active" : "pending"
+                : "pending";
               return (
-                <li key={stage.event} className={`demo-stage demo-stage-${state}`}>
+                <li key={populated ? stage.event.event_id : stage} className={`demo-stage demo-stage-${state}`}>
                   <span className="demo-stage-marker" aria-hidden="true">
                     {state === "complete" ? "✓" : index + 1}
                   </span>
                   <div>
-                    <strong>{stage.title}</strong>
-                    <p>{stage.description}</p>
-                    {index <= activeStage ? <code>{stage.evidence}</code> : null}
+                    <strong>{populated ? stage.title : stage}</strong>
+                    {populated ? <p>{stage.description}</p> : null}
+                    {populated && index <= activeStage ? <code>{stage.evidence}</code> : null}
                   </div>
                 </li>
               );
@@ -217,25 +357,25 @@ export function OfflineDemo() {
           </ol>
         </div>
 
-        <aside className="demo-event-panel" aria-label="Durable event preview">
+        <aside className="demo-event-panel" aria-label="Durable event evidence">
           <div className="demo-panel-heading compact">
             <div>
-              <span className="label">Event stream</span>
+              <span className="label">Real event stream</span>
               <h2>Durable evidence</h2>
             </div>
-            <code>demo-local-001</code>
+            <code>{data ? data.run.run_id.slice(0, 13) : "not started"}</code>
           </div>
           {visibleEvents.length === 0 ? (
             <div className="demo-empty-state">
               <span>◇</span>
-              <p>Start the demo to watch append-only run events appear.</p>
+              <p>Run the demo to create and replay persisted backend events.</p>
             </div>
           ) : (
             <ul className="demo-event-list" aria-live="polite">
-              {visibleEvents.map((stage, index) => (
-                <li key={stage.event}>
-                  <span>{String(visibleEvents.length - index).padStart(2, "0")}</span>
-                  <div><code>{stage.event}</code><small>{stage.evidence}</small></div>
+              {visibleEvents.map((event) => (
+                <li key={event.event_id}>
+                  <span>{String(event.sequence).padStart(2, "0")}</span>
+                  <div><code>{event.event_type}</code><small>{eventEvidence(event)}</small></div>
                 </li>
               ))}
             </ul>
@@ -243,29 +383,40 @@ export function OfflineDemo() {
         </aside>
       </section>
 
-      {complete ? (
+      {complete && data ? (
         <section className="demo-review" aria-live="polite">
           <div className="demo-patch-panel">
             <div className="demo-panel-heading compact">
               <div>
-                <span className="label">Candidate patch</span>
+                <span className="label">Content-addressed patch</span>
                 <h2>One-line normalization</h2>
               </div>
-              <span className="demo-file-count">1 file changed</span>
+              <span className="demo-file-count">{data.review.changed_paths.length} file changed</span>
             </div>
             <pre className="demo-diff" aria-label="Candidate code change">
-              {patchLines.map((line) => (
-                <code key={line.value} className={`demo-diff-${line.kind}`}>{line.value}</code>
-              ))}
+              {patchLines.map((line, index) => {
+                const kind = line.startsWith("+") && !line.startsWith("+++")
+                  ? "add"
+                  : line.startsWith("-") && !line.startsWith("---")
+                    ? "remove"
+                    : line.startsWith("diff") || line.startsWith("---") || line.startsWith("+++") || line.startsWith("@@")
+                      ? "meta"
+                      : "plain";
+                return <code key={`${index}-${line}`} className={`demo-diff-${kind}`}>{line || " "}</code>;
+              })}
             </pre>
           </div>
 
           <div className="demo-approval-panel">
             <span className="label">Independent evaluation</span>
-            <h2>Review the evidence</h2>
+            <h2>Review the real evidence</h2>
             <ul className="demo-check-list">
-              {checks.map(([name, result]) => (
-                <li key={name}><span>✓</span><strong>{name}</strong><small>{result}</small></li>
+              {data.review.checks.map((check) => (
+                <li key={check.check_id}>
+                  <span>✓</span>
+                  <strong>{readableLabel(check.check_id)}</strong>
+                  <small>{readableLabel(check.status)}</small>
+                </li>
               ))}
             </ul>
 
@@ -273,16 +424,16 @@ export function OfflineDemo() {
               <div className={`demo-decision demo-decision-${decision}`}>
                 <strong>{decision === "approved" ? "Patch approved locally" : "Patch rejected locally"}</strong>
                 <p>
-                  This demo recorded your decision only in page memory. No branch, commit,
-                  pull request, or external write was created.
+                  The backend stopped at the approval boundary. This browser decision
+                  creates no branch, commit, pull request, or external write.
                 </p>
-                <button type="button" className="secondary" onClick={startDemo}>Replay demo</button>
+                <button type="button" className="secondary" onClick={startDemo}>Run a new demo</button>
               </div>
             ) : (
               <div className="demo-review-actions">
-                <button type="button" onClick={() => setDecision("approved")}>Approve exact patch</button>
+                <button type="button" onClick={() => setDecision("approved")}>Approve for this tour</button>
                 <button type="button" className="demo-reject" onClick={() => setDecision("rejected")}>Reject</button>
-                <p>Both choices are local and reversible in this product tour.</p>
+                <p>Both choices stay in page memory; GitHub publishing remains disabled.</p>
               </div>
             )}
           </div>

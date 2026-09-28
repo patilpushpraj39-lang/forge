@@ -47,6 +47,10 @@ class RunStoreProtocol(Protocol):
         self, worker_id: str, lease_seconds: float = 30
     ) -> dict[str, Any] | None: ...
 
+    def claim_run(
+        self, run_id: str, worker_id: str, lease_seconds: float = 30
+    ) -> dict[str, Any] | None: ...
+
     def renew_lease(
         self, run_id: str, worker_id: str, lease_seconds: float = 30
     ) -> dict[str, Any]: ...

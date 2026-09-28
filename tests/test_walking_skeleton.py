@@ -161,6 +161,22 @@ class WalkingSkeletonTests(unittest.TestCase):
             },
         )
 
+    def test_targeted_claim_does_not_consume_an_earlier_run(self) -> None:
+        store = RunStore(self.database)
+        first = store.create_run(str(self.repository), "First queued task.")
+        second = store.create_run(str(self.repository), "Second targeted task.")
+
+        claimed = store.claim_run(str(second["run_id"]), "targeted-worker")
+
+        self.assertIsNotNone(claimed)
+        assert claimed is not None
+        self.assertEqual(claimed["run_id"], second["run_id"])
+        self.assertEqual(claimed["state"], RunState.SNAPSHOTTING)
+        next_run = store.claim_next_run("queue-worker")
+        self.assertIsNotNone(next_run)
+        assert next_run is not None
+        self.assertEqual(next_run["run_id"], first["run_id"])
+
     def test_existing_sqlite_database_receives_safe_run_defaults(self) -> None:
         import sqlite3
 

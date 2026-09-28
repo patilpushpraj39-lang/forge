@@ -1316,6 +1316,36 @@ main.demo-page {
   padding: 16px 24px 4px;
 }
 
+.demo-backend-error {
+  margin: 16px 24px 0;
+  padding: 14px 16px;
+  border: 1px solid #65363e;
+  border-radius: 10px;
+  background: #2c151a;
+}
+
+.demo-backend-error strong,
+.demo-backend-error p,
+.demo-backend-error span {
+  display: block;
+}
+
+.demo-backend-error strong {
+  color: #ffb4bf;
+}
+
+.demo-backend-error p {
+  margin: 6px 0;
+  color: #d7abb1;
+  font: 0.75rem ui-monospace, SFMono-Regular, Consolas, monospace;
+  overflow-wrap: anywhere;
+}
+
+.demo-backend-error span {
+  color: #a98389;
+  font-size: 0.72rem;
+}
+
 .demo-stage-list {
   margin: 0;
   padding: 12px 24px 24px;

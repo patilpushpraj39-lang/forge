@@ -199,6 +199,24 @@ def _hash_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _preserve_existing_line_endings(
+    base: Path, workspace: Path, changed_paths: tuple[str, ...]
+) -> None:
+    """Prevent Windows Git configuration from turning one-line patches into full rewrites."""
+    for relative in changed_paths:
+        original = base / relative
+        changed = workspace / relative
+        if not original.is_file() or not changed.is_file():
+            continue
+        original_bytes = original.read_bytes()
+        changed_bytes = changed.read_bytes()
+        normalized = changed_bytes.replace(b"\r\n", b"\n")
+        if b"\r\n" in original_bytes:
+            normalized = normalized.replace(b"\n", b"\r\n")
+        if normalized != changed_bytes:
+            changed.write_bytes(normalized)
+
+
 def _validate_patch(patch: bytes) -> tuple[str, ...]:
     if not patch or len(patch) > MAX_PATCH_BYTES:
         raise InvalidPatchError("patch is empty or exceeds the byte limit")
@@ -597,6 +615,9 @@ class LocalSandboxController:
             raise InvalidPatchError(
                 applied.stdout.decode("utf-8", errors="replace")[:2048]
             )
+        _preserve_existing_line_endings(
+            state.base, state.workspace, changed_paths
+        )
         state.repository_index = None
         return AppliedPatch(patch_hash, changed_paths)
 
