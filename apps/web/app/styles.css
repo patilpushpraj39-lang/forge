@@ -1577,8 +1577,19 @@ button.demo-reject {
   line-height: 1.5;
 }
 
+.demo-decision small {
+  display: block;
+  margin: -5px 0 14px;
+  color: #75ddb1;
+  font-size: 0.68rem;
+}
+
 .demo-decision-rejected p {
   color: #c3a1a6;
+}
+
+.demo-decision-rejected small {
+  color: #ffadb7;
 }
 
 @media (max-width: 640px) {

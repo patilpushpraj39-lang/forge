@@ -6,7 +6,7 @@ import os
 import tempfile
 from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -139,6 +139,19 @@ class GrantApprovalRequest(BaseModel):
         min_length=16, max_length=128, pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:-]+$"
     )
     expires_in_seconds: int = Field(default=900, ge=60, le=1_800)
+
+
+class OfflineDemoDecisionRequest(BaseModel):
+    """A record-only decision that can never authorize an external write."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    decision: Literal["approved", "rejected"]
+    patch_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    evaluation_verdict_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    decision_key: str = Field(
+        min_length=16, max_length=128, pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:-]+$"
+    )
 
 
 class PublishRunRequest(BaseModel):
@@ -426,14 +439,68 @@ def create_offline_demo_run() -> dict[str, object]:
             ),
         )
         run_id = str(created["run_id"])
-        run = execute_offline_demo(store, run_id, controller)
-        events = store.list_events(run_id)
-        review = _build_run_review(run_id, store, controller)
+        store.append_event(
+            run_id,
+            "offline_demo_configured",
+            "api",
+            {
+                "scenario": "status-normalizer-public-smoke",
+                "runtime": "forge-deterministic-demo-v1",
+                "provider_calls_enabled": False,
+                "github_writes_enabled": False,
+            },
+        )
+        execute_offline_demo(store, run_id, controller)
     except Exception as error:
         raise HTTPException(
             status_code=500,
             detail=f"offline demo failed: {type(error).__name__}",
         ) from error
+
+    return _build_offline_demo_response(run_id)
+
+
+def _offline_demo_decision(
+    events: list[dict[str, object]],
+) -> dict[str, object] | None:
+    recorded = next(
+        (
+            event
+            for event in reversed(events)
+            if event["event_type"] == "offline_demo_review_decided"
+        ),
+        None,
+    )
+    if recorded is None:
+        return None
+    payload = recorded["payload"]
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=409, detail="demo review evidence is invalid")
+    return {
+        "event_id": recorded["event_id"],
+        "decision": payload.get("decision"),
+        "decision_key": payload.get("decision_key"),
+        "actor": recorded["actor"],
+        "recorded_at": recorded["occurred_at"],
+        "patch_hash": payload.get("patch_hash"),
+        "verdict_hash": payload.get("verdict_hash"),
+        "authorizes_github_write": False,
+    }
+
+
+def _build_offline_demo_response(run_id: str) -> dict[str, object]:
+    try:
+        run = store.get_run(run_id)
+    except RunNotFoundError as error:
+        raise HTTPException(status_code=404, detail="demo run not found") from error
+    events = store.list_events(run_id)
+    configured = next(
+        (event for event in events if event["event_type"] == "offline_demo_configured"),
+        None,
+    )
+    if configured is None:
+        raise HTTPException(status_code=404, detail="demo run not found")
+    review = _build_run_review(run_id, store, controller)
 
     agent_stopped = next(
         (
@@ -448,6 +515,7 @@ def create_offline_demo_run() -> dict[str, object]:
         "run": run,
         "events": events,
         "review": review,
+        "decision": _offline_demo_decision(events),
         "safety": {
             "provider": "offline",
             "model": "forge-deterministic-demo-v1",
@@ -457,6 +525,63 @@ def create_offline_demo_run() -> dict[str, object]:
             "github_writes": 0,
         },
     }
+
+
+@app.get("/demo/runs/{run_id}")
+def get_offline_demo_run(run_id: str) -> dict[str, object]:
+    """Restore one durable offline demo and its record-only review decision."""
+
+    return _build_offline_demo_response(run_id)
+
+
+@app.post("/demo/runs/{run_id}/decision")
+def record_offline_demo_decision(
+    run_id: str, request: OfflineDemoDecisionRequest
+) -> dict[str, object]:
+    """Record a local tour decision without creating publication authority."""
+
+    response = _build_offline_demo_response(run_id)
+    run = response["run"]
+    review = response["review"]
+    if not isinstance(run, dict) or run.get("state") != "AWAITING_APPROVAL":
+        raise HTTPException(status_code=409, detail="demo is not awaiting review")
+    if not isinstance(review, dict):
+        raise HTTPException(status_code=409, detail="demo review evidence is unavailable")
+    if (
+        request.patch_hash != review.get("patch_hash")
+        or request.evaluation_verdict_hash != review.get("verdict_hash")
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="decision does not match the evaluated patch and verdict",
+        )
+
+    existing = response.get("decision")
+    if isinstance(existing, dict):
+        same_request = (
+            existing.get("decision") == request.decision
+            and existing.get("decision_key") == request.decision_key
+            and existing.get("patch_hash") == request.patch_hash
+            and existing.get("verdict_hash") == request.evaluation_verdict_hash
+        )
+        if same_request:
+            return response
+        raise HTTPException(status_code=409, detail="demo review decision is already recorded")
+
+    store.append_event(
+        run_id,
+        "offline_demo_review_decided",
+        "local:demo-reviewer",
+        {
+            "decision": request.decision,
+            "decision_key": request.decision_key,
+            "patch_hash": request.patch_hash,
+            "verdict_hash": request.evaluation_verdict_hash,
+            "effect": "record_only",
+            "github_write_authorized": False,
+        },
+    )
+    return _build_offline_demo_response(run_id)
 
 
 @app.get("/runs/{run_id}")

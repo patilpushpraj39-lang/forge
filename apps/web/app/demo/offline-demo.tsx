@@ -6,6 +6,17 @@ import { useEffect, useMemo, useState } from "react";
 
 type Decision = "approved" | "rejected" | null;
 
+type DemoDecision = {
+  event_id: string;
+  decision: Exclude<Decision, null>;
+  decision_key: string;
+  actor: string;
+  recorded_at: string;
+  patch_hash: string;
+  verdict_hash: string;
+  authorizes_github_write: false;
+};
+
 type RunEvent = {
   event_id: string;
   run_id: string;
@@ -36,6 +47,7 @@ type DemoResponse = {
     changed_paths: string[];
     checks: DemoCheck[];
   };
+  decision: DemoDecision | null;
   safety: {
     provider: "offline";
     model: string;
@@ -54,6 +66,7 @@ type DemoStage = {
 };
 
 const apiBase = process.env.NEXT_PUBLIC_FORGE_API_URL ?? "http://localhost:8000";
+const storedDemoRunKey = "forge.offline-demo.run-id";
 
 function eventByType(events: RunEvent[], eventType: string): RunEvent {
   const event = events.find((item) => item.event_type === eventType);
@@ -173,7 +186,9 @@ export function OfflineDemo() {
   const [activeStage, setActiveStage] = useState(-1);
   const [running, setRunning] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [decision, setDecision] = useState<Decision>(null);
+  const [restoring, setRestoring] = useState(false);
+  const [decisionBusy, setDecisionBusy] = useState<Decision>(null);
+  const [decisionRequestKey, setDecisionRequestKey] = useState<string | null>(null);
   const [data, setData] = useState<DemoResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -198,8 +213,35 @@ export function OfflineDemo() {
     return () => window.clearTimeout(timer);
   }, [activeStage, running, stages.length]);
 
+  useEffect(() => {
+    const runId = window.localStorage.getItem(storedDemoRunKey);
+    if (!runId) return;
+    let cancelled = false;
+    setRestoring(true);
+    fetch(`${apiBase}/demo/runs/${encodeURIComponent(runId)}`)
+      .then(responseJson)
+      .then((payload) => {
+        if (cancelled) return;
+        const restoredStages = buildStages(payload);
+        setData(payload);
+        setActiveStage(restoredStages.length - 1);
+      })
+      .catch((problem: unknown) => {
+        if (cancelled) return;
+        window.localStorage.removeItem(storedDemoRunKey);
+        setError(problem instanceof Error ? problem.message : "The saved demo could not be restored.");
+      })
+      .finally(() => {
+        if (!cancelled) setRestoring(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   async function startDemo() {
-    setDecision(null);
+    setDecisionBusy(null);
+    setDecisionRequestKey(null);
     setData(null);
     setError(null);
     setActiveStage(-1);
@@ -210,6 +252,7 @@ export function OfflineDemo() {
       const payload = await responseJson(response);
       buildStages(payload);
       setData(payload);
+      window.localStorage.setItem(storedDemoRunKey, payload.run.run_id);
       setActiveStage(0);
       setRunning(true);
     } catch (problem) {
@@ -223,16 +266,52 @@ export function OfflineDemo() {
     setRunning(false);
     setLoading(false);
     setActiveStage(-1);
-    setDecision(null);
+    setDecisionBusy(null);
+    setDecisionRequestKey(null);
     setData(null);
     setError(null);
+    window.localStorage.removeItem(storedDemoRunKey);
   }
+
+  async function recordDecision(decision: Exclude<Decision, null>) {
+    if (!data || decisionBusy) return;
+    const requestKey = decisionRequestKey ?? `demo-review-${window.crypto.randomUUID()}`;
+    setDecisionRequestKey(requestKey);
+    setDecisionBusy(decision);
+    setError(null);
+    try {
+      const response = await fetch(
+        `${apiBase}/demo/runs/${encodeURIComponent(data.run.run_id)}/decision`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            decision,
+            patch_hash: data.review.patch_hash,
+            evaluation_verdict_hash: data.review.verdict_hash,
+            decision_key: requestKey
+          })
+        }
+      );
+      const payload = await responseJson(response);
+      setData(payload);
+      window.localStorage.setItem(storedDemoRunKey, payload.run.run_id);
+    } catch (problem) {
+      setError(problem instanceof Error ? problem.message : "The decision could not be recorded.");
+    } finally {
+      setDecisionBusy(null);
+    }
+  }
+
+  const decision = data?.decision?.decision ?? null;
 
   const status = decision
     ? decision === "approved"
       ? "Approved locally"
       : "Rejected locally"
-    : loading
+    : restoring
+      ? "Restoring durable review"
+      : loading
       ? "Executing real workflow"
       : running
         ? "Replaying durable evidence"
@@ -319,10 +398,10 @@ export function OfflineDemo() {
           ) : null}
 
           <div className="demo-actions">
-            <button type="button" onClick={startDemo} disabled={running || loading}>
+            <button type="button" onClick={startDemo} disabled={running || loading || restoring}>
               {loading ? "Executing locally…" : error ? "Try backend again" : data ? "Run another real demo" : "Run real offline demo"}
             </button>
-            <button type="button" className="secondary" onClick={resetDemo} disabled={loading}>
+            <button type="button" className="secondary" onClick={resetDemo} disabled={loading || restoring}>
               Reset
             </button>
           </div>
@@ -424,16 +503,21 @@ export function OfflineDemo() {
               <div className={`demo-decision demo-decision-${decision}`}>
                 <strong>{decision === "approved" ? "Patch approved locally" : "Patch rejected locally"}</strong>
                 <p>
-                  The backend stopped at the approval boundary. This browser decision
-                  creates no branch, commit, pull request, or external write.
+                  The backend audit trail recorded this evidence-bound review. It creates
+                  no branch, commit, pull request, publication permission, or external write.
                 </p>
+                <small>Recorded by {data.decision?.actor} · survives refresh</small>
                 <button type="button" className="secondary" onClick={startDemo}>Run a new demo</button>
               </div>
             ) : (
               <div className="demo-review-actions">
-                <button type="button" onClick={() => setDecision("approved")}>Approve for this tour</button>
-                <button type="button" className="demo-reject" onClick={() => setDecision("rejected")}>Reject</button>
-                <p>Both choices stay in page memory; GitHub publishing remains disabled.</p>
+                <button type="button" disabled={decisionBusy !== null} onClick={() => recordDecision("approved")}>
+                  {decisionBusy === "approved" ? "Recording…" : "Approve locally"}
+                </button>
+                <button type="button" className="demo-reject" disabled={decisionBusy !== null} onClick={() => recordDecision("rejected")}>
+                  {decisionBusy === "rejected" ? "Recording…" : "Reject"}
+                </button>
+                <p>The backend stores one immutable decision. GitHub publishing remains disabled.</p>
               </div>
             )}
           </div>

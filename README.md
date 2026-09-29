@@ -107,6 +107,13 @@ model performance; live executions and tagged reproduction remain. See the
 the [controlled-experiment architecture](docs/architecture/controlled-experiments.md),
 and [Milestone 7 progress record](docs/verification/milestone-7-progress.md).
 
+The zero-cost product tour now runs the real local persistence, sandbox,
+repository-intelligence, bounded-tool, artifact, and independent-evaluation
+path with a deterministic offline runtime. Its human review is persisted in the
+backend audit trail, bound to the exact patch and verdict, restored after a page
+refresh, and explicitly cannot authorize a GitHub write. This provides a safe
+end-to-end demonstration without an API key, provider request, or usage charge.
+
 ## Product boundary
 
 Version 0.1 is intentionally narrow:

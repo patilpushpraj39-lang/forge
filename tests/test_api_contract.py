@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from fastapi import HTTPException
 from pydantic import ValidationError
 
 import forge_api.main as api_main
@@ -76,6 +77,7 @@ class ApiRunContractTests(unittest.TestCase):
         self.assertEqual(response["safety"]["network_requests"], 0)
         self.assertEqual(response["safety"]["cost_microusd"], 0)
         self.assertEqual(response["safety"]["github_writes"], 0)
+        self.assertIsNone(response["decision"])
         self.assertIn(
             "+    return value.strip().lower()",
             response["review"]["patch"],
@@ -94,6 +96,63 @@ class ApiRunContractTests(unittest.TestCase):
         self.assertIn("patch_ready", event_types)
         self.assertIn("evaluation_completed", event_types)
         self.assertEqual(event_types[-1], "workspace_destroyed")
+
+    def test_offline_demo_persists_one_evidence_bound_record_only_decision(self) -> None:
+        created = api_main.create_offline_demo_run()
+        run_id = str(created["run"]["run_id"])
+        request = api_main.OfflineDemoDecisionRequest(
+            decision="approved",
+            patch_hash=str(created["review"]["patch_hash"]),
+            evaluation_verdict_hash=str(created["review"]["verdict_hash"]),
+            decision_key="demo-review-contract-0001",
+        )
+
+        decided = api_main.record_offline_demo_decision(run_id, request)
+        repeated = api_main.record_offline_demo_decision(run_id, request)
+        restored = api_main.get_offline_demo_run(run_id)
+
+        self.assertEqual(decided["run"]["state"], RunState.AWAITING_APPROVAL)
+        self.assertEqual(decided["decision"]["decision"], "approved")
+        self.assertEqual(
+            decided["decision"]["patch_hash"], created["review"]["patch_hash"]
+        )
+        self.assertFalse(decided["decision"]["authorizes_github_write"])
+        self.assertEqual(
+            repeated["decision"]["event_id"], decided["decision"]["event_id"]
+        )
+        self.assertEqual(restored["decision"], decided["decision"])
+        event_types = [item["event_type"] for item in restored["events"]]
+        self.assertEqual(event_types.count("offline_demo_review_decided"), 1)
+        self.assertNotIn("approval_granted", event_types)
+        self.assertNotIn("publication_requested", event_types)
+
+        with self.assertRaises(HTTPException) as conflict:
+            api_main.record_offline_demo_decision(
+                run_id,
+                api_main.OfflineDemoDecisionRequest(
+                    decision="rejected",
+                    patch_hash=str(created["review"]["patch_hash"]),
+                    evaluation_verdict_hash=str(created["review"]["verdict_hash"]),
+                    decision_key="demo-review-contract-0002",
+                ),
+            )
+        self.assertEqual(conflict.exception.status_code, 409)
+
+    def test_offline_demo_rejects_decision_for_different_evidence(self) -> None:
+        created = api_main.create_offline_demo_run()
+        run_id = str(created["run"]["run_id"])
+
+        with self.assertRaises(HTTPException) as mismatch:
+            api_main.record_offline_demo_decision(
+                run_id,
+                api_main.OfflineDemoDecisionRequest(
+                    decision="approved",
+                    patch_hash="f" * 64,
+                    evaluation_verdict_hash=str(created["review"]["verdict_hash"]),
+                    decision_key="demo-review-mismatch-0001",
+                ),
+            )
+        self.assertEqual(mismatch.exception.status_code, 409)
 
     def test_api_records_repository_approval_and_publication_contract(self) -> None:
         reviewer = ReviewerPrincipal(
