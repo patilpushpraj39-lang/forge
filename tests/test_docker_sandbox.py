@@ -140,6 +140,16 @@ class DockerSandboxAbuseTests(unittest.TestCase):
             output_limit_bytes=2048,
         )
 
+    def assert_status(self, result, expected: CommandStatus) -> None:
+        self.assertEqual(
+            result.status,
+            expected,
+            msg=(
+                f"container command returned {result.status.value} "
+                f"with exit code {result.exit_code}; output:\n{result.output}"
+            ),
+        )
+
     def test_network_secrets_runtime_socket_and_root_filesystem_are_denied(self) -> None:
         os.environ["FORGE_SECRET_CANARY"] = "must-not-cross-boundary"
         code = """
@@ -167,13 +177,13 @@ print("isolation-ok")
         finally:
             os.environ.pop("FORGE_SECRET_CANARY", None)
 
-        self.assertEqual(result.status, CommandStatus.COMPLETED)
+        self.assert_status(result, CommandStatus.COMPLETED)
         self.assertEqual(result.output.strip(), "isolation-ok")
 
     def test_output_disk_and_process_limits_are_bounded(self) -> None:
         started = time.monotonic()
         output = self.execute("print('x' * 1000000)")
-        self.assertEqual(output.status, CommandStatus.OUTPUT_LIMIT)
+        self.assert_status(output, CommandStatus.OUTPUT_LIMIT)
         self.assertLessEqual(len(output.output.encode("utf-8")), 2048)
 
         process_code = """
@@ -192,13 +202,13 @@ assert limited
 print("pids-limited")
 """
         processes = self.execute(process_code)
-        self.assertEqual(processes.status, CommandStatus.COMPLETED)
+        self.assert_status(processes, CommandStatus.COMPLETED)
         self.assertIn("pids-limited", processes.output)
 
         disk = self.execute(
             "open('large.bin', 'wb').write(b'x' * 2000000)"
         )
-        self.assertEqual(disk.status, CommandStatus.RESOURCE_LIMIT)
+        self.assert_status(disk, CommandStatus.RESOURCE_LIMIT)
         self.assertLess(time.monotonic() - started, 12)
 
     def test_background_process_and_memory_abuse_end_with_the_container(self) -> None:
@@ -207,12 +217,12 @@ print("pids-limited")
             "subprocess.Popen(['sleep','30'], stdout=subprocess.DEVNULL, "
             "stderr=subprocess.DEVNULL); print('parent-exited')"
         )
-        self.assertEqual(background.status, CommandStatus.COMPLETED)
+        self.assert_status(background, CommandStatus.COMPLETED)
         self.assertEqual(background.output.strip(), "parent-exited")
 
         started = time.monotonic()
         memory = self.execute("value = bytearray(256 * 1024 * 1024); print(len(value))")
-        self.assertEqual(memory.status, CommandStatus.FAILED)
+        self.assert_status(memory, CommandStatus.FAILED)
         self.assertLess(time.monotonic() - started, 8)
 
 

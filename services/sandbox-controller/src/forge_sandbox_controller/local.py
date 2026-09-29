@@ -290,6 +290,7 @@ class _OutputCollector:
         self._thread.join(timeout=2)
         if self._thread.is_alive():
             raise RuntimeError("command output reader did not terminate")
+        self._stream.close()  # type: ignore[attr-defined]
         return bytes(self._content).decode("utf-8", errors="replace")
 
     def _read(self) -> None:
