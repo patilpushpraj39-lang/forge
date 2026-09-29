@@ -58,6 +58,10 @@ class DockerPolicyCommandTests(unittest.TestCase):
         self.assertNotIn("--privileged", command)
         self.assertNotIn("/var/run/docker.sock", rendered)
         self.assertEqual(command.count("--mount"), 1)
+        mount = command[command.index("--mount") + 1]
+        self.assertTrue(mount.startswith("type=bind,src="))
+        self.assertTrue(mount.endswith(",dst=/workspace"))
+        self.assertNotIn(",rw", mount)
         self.assertEqual(command[-2:], ["python", "-V"])
 
     def test_mutable_image_tags_are_rejected(self) -> None:

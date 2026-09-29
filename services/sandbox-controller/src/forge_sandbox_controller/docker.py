@@ -92,7 +92,7 @@ def build_docker_run_command(
         f"/tmp:rw,noexec,nosuid,nodev,size={temporary},"
         "uid=65532,gid=65532,mode=1777",
         "--mount",
-        f"type=bind,src={workspace_text},dst=/workspace,rw",
+        f"type=bind,src={workspace_text},dst=/workspace",
         "--env",
         "HOME=/tmp",
         "--env",
