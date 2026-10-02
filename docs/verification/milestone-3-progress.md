@@ -61,3 +61,18 @@ limit and exiting within one polling interval. Both successful and failed exits
 must report the aggregate workspace limit violation. The local suite ran 113
 tests: 104 passed and 9 skipped (3 Docker and 6 PostgreSQL). No provider calls
 were made. The updated real Docker CI run is still required to close this gate.
+
+## Command cleanup on control-plane errors (2026-10-02)
+
+Cancellation, heartbeat, and resource-measurement callbacks could previously
+raise while leaving the command running. The bounded-process runner now attempts
+the sandbox stop hook, terminates and reaps the local process, drains/closes its
+output pipe, and re-raises the original error. A failing sandbox stop hook cannot
+bypass local process termination, and the hook is attempted at most once.
+
+Five regressions use real long-running Python child processes to verify callback
+errors, stop-hook errors, and preservation of the original callback error when
+cleanup also fails. Each checks process termination and output-pipe closure.
+The local suite ran 118 tests: 109 passed and 9 skipped (3 Docker and 6 PostgreSQL).
+No provider calls were made. These checks do not replace real Docker CI evidence
+or prove cleanup when the host operating system itself denies termination.

@@ -14,6 +14,7 @@ import threading
 import time
 import uuid
 from collections.abc import Callable, Sequence
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
@@ -335,59 +336,77 @@ def _run_bounded_process(
     collector.start()
     started_at = time.monotonic()
     next_heartbeat = started_at + heartbeat_interval_seconds
+    forced_stop_attempted = False
+    process_terminated = False
 
     def stop() -> None:
-        if forced_stop is not None:
-            forced_stop()
-        _terminate_process(process)
+        nonlocal forced_stop_attempted, process_terminated
+        try:
+            if forced_stop is not None and not forced_stop_attempted:
+                forced_stop_attempted = True
+                forced_stop()
+        finally:
+            # A failed container-stop hook must not leave the local command alive.
+            if not process_terminated:
+                _terminate_process(process)
+                process_terminated = True
 
-    while process.poll() is None:
-        if should_cancel():
-            stop()
-            return CommandResult(
-                CommandStatus.CANCELLED,
-                None,
-                collector.finish(),
-                collector.exceeded.is_set(),
-            )
+    try:
+        while process.poll() is None:
+            if should_cancel():
+                stop()
+                return CommandResult(
+                    CommandStatus.CANCELLED,
+                    None,
+                    collector.finish(),
+                    collector.exceeded.is_set(),
+                )
+            if collector.exceeded.is_set():
+                stop()
+                return CommandResult(
+                    CommandStatus.OUTPUT_LIMIT, None, collector.finish(), True
+                )
+            if resource_exceeded is not None and resource_exceeded():
+                stop()
+                return CommandResult(
+                    CommandStatus.RESOURCE_LIMIT,
+                    None,
+                    collector.finish(),
+                    collector.exceeded.is_set(),
+                )
+            now = time.monotonic()
+            if now - started_at >= timeout_seconds:
+                stop()
+                return CommandResult(
+                    CommandStatus.TIMED_OUT,
+                    None,
+                    collector.finish(),
+                    collector.exceeded.is_set(),
+                )
+            if now >= next_heartbeat:
+                heartbeat()
+                next_heartbeat = now + heartbeat_interval_seconds
+            time.sleep(0.05)
+
+        if os.name != "nt":
+            _terminate_process(process)
+        output = collector.finish()
         if collector.exceeded.is_set():
+            return CommandResult(CommandStatus.OUTPUT_LIMIT, None, output, True)
+        status = (
+            CommandStatus.COMPLETED
+            if process.returncode == 0
+            else CommandStatus.FAILED
+        )
+        return CommandResult(status, process.returncode, output)
+    except BaseException:
+        # Preserve the original failure, including interrupts, while independently
+        # attempting sandbox teardown, process termination, and output-pipe cleanup.
+        with suppress(Exception):
             stop()
-            return CommandResult(
-                CommandStatus.OUTPUT_LIMIT, None, collector.finish(), True
-            )
-        if resource_exceeded is not None and resource_exceeded():
-            stop()
-            return CommandResult(
-                CommandStatus.RESOURCE_LIMIT,
-                None,
-                collector.finish(),
-                collector.exceeded.is_set(),
-            )
-        now = time.monotonic()
-        if now - started_at >= timeout_seconds:
-            stop()
-            return CommandResult(
-                CommandStatus.TIMED_OUT,
-                None,
-                collector.finish(),
-                collector.exceeded.is_set(),
-            )
-        if now >= next_heartbeat:
-            heartbeat()
-            next_heartbeat = now + heartbeat_interval_seconds
-        time.sleep(0.05)
-
-    if os.name != "nt":
-        _terminate_process(process)
-    output = collector.finish()
-    if collector.exceeded.is_set():
-        return CommandResult(CommandStatus.OUTPUT_LIMIT, None, output, True)
-    status = (
-        CommandStatus.COMPLETED
-        if process.returncode == 0
-        else CommandStatus.FAILED
-    )
-    return CommandResult(status, process.returncode, output)
+        with suppress(Exception):
+            collector.finish()
+        raise
 
 
 @dataclass
