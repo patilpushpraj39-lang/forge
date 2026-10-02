@@ -49,7 +49,8 @@ cleanup slice has [its own verification record](orphan-cleanup.md) and CI gate.
 
 These tests force lease expiry in a disposable database and exercise a live
 old command. They do not simulate a killed worker service or a host crash.
-Orphan-container cleanup after abrupt process death has a separate pending proof.
+Orphan-container cleanup after abrupt process death has a separate
+[passing Docker CI proof](orphan-cleanup.md).
 
 Workers must have distinct IDs. This slice does not add attempt-number fencing
 to every artifact/event write, prove exactly-once external execution, or resume

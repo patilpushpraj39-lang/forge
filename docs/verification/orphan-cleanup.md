@@ -1,7 +1,7 @@
 # Orphan-container cleanup verification
 
 - Date: 2026-10-02
-- Status: local unit checks passed; real Docker crash proof pending CI
+- Status: local unit checks and real Docker crash proof passed
 - Provider calls and local container removals: none
 
 The controller now labels each command container with a deployment scope and
@@ -26,7 +26,9 @@ an expired foreign-scope neighbor running. A second cleanup is idempotent.
 The test uses a unique scope and disposable paths and cleans up only its own
 recorded full IDs.
 
-This new test is not yet real-Docker evidence on this workstation: Docker is
-unconfigured locally, so it skips here and must pass after the commit is pushed.
+At commit `1e8d038`, [CI run 12](https://github.com/patilpushpraj39-lang/forge/actions/runs/36991989591)
+passed both `verify` and `sandbox-abuse`. The sandbox-recovery step ran all 15
+tests without skips, including the hard-killed-owner Docker test. Docker remains
+unconfigured on this workstation, so that test still skips locally.
 Abrupt host failure, orphan filesystem removal, automatic scheduling, and
 exactly-once execution are not claimed.

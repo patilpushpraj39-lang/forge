@@ -7,8 +7,8 @@ This repository is the public product monorepo. Hidden benchmark tests and answe
 ## Current status
 
 Milestones 0 and 1 are complete. Milestone 2 repository intelligence is
-implemented and awaiting clean CI reproduction. Milestone 3 secure execution
-is implemented and awaiting its first public Docker abuse-test run. Milestone
+implemented and reproduced in GitHub CI. Milestone 3 secure execution
+has passing Docker abuse and expired-container crash-cleanup checks. Milestone
 4's bounded-agent foundation is active, Milestone 5 independent evaluation
 is complete locally, and the Milestone 6 approval/publishing foundation is
 implemented. The product contract, architecture decisions,
@@ -45,8 +45,8 @@ Milestone 3 secure execution and patching is active. The controller now creates
 deterministic content-addressed snapshots, validates and applies bounded unified
 patches, generates reproducible diff artifacts, and reconstructs clean
 verification sandboxes. A Docker backend with default-deny networking and
-explicit CPU, memory, process, filesystem, output, and time limits is ready for
-its first GitHub abuse-test run. Content-addressed artifacts can use a local
+explicit CPU, memory, process, filesystem, output, and time limits has passed
+the GitHub abuse-test lane. Content-addressed artifacts can use a local
 store or an S3-compatible encrypted bucket with explicit retention. See the
 [sandbox architecture](docs/architecture/sandbox.md) and
 [Milestone 3 progress record](docs/verification/milestone-3-progress.md).
@@ -113,6 +113,10 @@ path with a deterministic offline runtime. Its human review is persisted in the
 backend audit trail, bound to the exact patch and verdict, restored after a page
 refresh, and explicitly cannot authorize a GitHub write. This provides a safe
 end-to-end demonstration without an API key, provider request, or usage charge.
+Real HTTP regression tests now restart an isolated API process and verify
+durable approve/reject decisions, idempotent replay, stale-evidence rejection,
+and fail-closed review when a persisted patch is missing or altered. See the
+[offline HTTP verification record](docs/verification/offline-http.md).
 
 ## Product boundary
 
@@ -211,6 +215,10 @@ and independent evaluator. It needs no API key, makes no model or external
 network calls, spends no money, and cannot write to GitHub. Its fixed retired
 public smoke fixture demonstrates the engineering workflow only; it is not
 benchmark or model-quality evidence.
+
+The [offline verification guide](docs/operations/offline-verification.md)
+explains how to check review persistence and run the isolated HTTP restart
+tests without touching your normal demo database or requiring an API key.
 
 After creating a run, advance one queued run from a third terminal:
 
