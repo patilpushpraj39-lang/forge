@@ -1,7 +1,7 @@
 # Controlled API access verification
 
 - Date: 2026-10-02
-- Status: locally verified; GitHub reproduction pending the next push
+- Status: initial GitHub run failed on malformed PostgreSQL run IDs; fix locally verified, GitHub reproduction pending the next push
 - Paid model calls, live Clerk requests, and GitHub writes: none
 
 ## Behavior
@@ -29,7 +29,7 @@ chunks and rejects WebSocket connections.
 
 ## Evidence
 
-`tests/test_api_access.py` contains 15 tests covering:
+`tests/test_api_access.py` contains 16 tests covering:
 
 - Development defaults and valid controlled/S3 configuration.
 - Unsafe or missing configuration, malformed origins, and secret-safe errors.
@@ -44,15 +44,45 @@ chunks and rejects WebSocket connections.
 - Exact-origin browser preflight handling and readable known rejection responses.
 - Development compatibility, absent controlled docs, finite SSE delivery, and
   WebSocket denial.
+- Malformed and missing run IDs: protected reads, review, event replay/SSE and
+  cancellation require authentication first, then return 404; development demo
+  reads also return 404.
 
 The application-construction function used by these tests is also used by the
 real API. Request-boundary tests attach the actual product handlers, use fixture
 identities, and do not connect to live Clerk or GitHub services.
 
-The latest local full suite collected 159 tests: 148 passed and 11 skipped
+The initial local full suite collected 159 tests: 148 passed and 11 skipped
 (4 Docker and 7 PostgreSQL tests without local configuration). The scaffold
 and whitespace checks passed. Existing real-HTTP offline restart tests remain
 part of this suite.
+
+## PostgreSQL run-ID regression
+
+[GitHub CI run 36995395150](https://github.com/patilpushpraj39-lang/forge/actions/runs/36995395150)
+at commit `943d14a` failed the original development demo access test: a request
+for `nonexistent` reached a PostgreSQL UUID query and raised
+`InvalidTextRepresentation` instead of returning 404. The Docker abuse job
+passed, but the verify job failed before web typecheck/build.
+
+The adapter now rejects malformed and noncanonical IDs in run lookup before
+UUID SQL. It does not resolve uppercase, compact or braced UUID aliases. Missing
+event lists and targeted claims retain SQLite semantics (empty list/no claim).
+The shared mutation lookup rejects invalid IDs before its query. Real database
+errors for valid IDs are not reclassified as missing runs.
+
+The original failing API test remains unchanged. Five database-free adapter
+tests cover rejection before SQL, SQLite parity, valid missing UUID lookup, and
+propagation of database failures. A new real-PostgreSQL integration test checks
+that malformed reads, cancellation and claims leave an existing run and its
+events unchanged.
+
+After installing the existing PostgreSQL Python dependency into the local
+virtual environment, the latest full suite collected 166 tests: 154 passed
+and 12 skipped (4 Docker and 8 PostgreSQL integration tests without local
+configuration). All five adapter tests executed locally. Scaffold and
+whitespace checks passed. The new database-backed API/integration cases await
+the next GitHub run; this record does not claim that run has passed.
 
 ## Remaining gates
 

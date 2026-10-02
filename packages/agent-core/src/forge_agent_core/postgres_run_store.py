@@ -52,6 +52,19 @@ class MigrationChecksumError(RuntimeError):
     pass
 
 
+def _require_canonical_run_id(run_id: str) -> None:
+    """Reject invalid IDs before PostgreSQL's UUID cast; never resolve aliases."""
+    try:
+        canonical = (
+            isinstance(run_id, str) and len(run_id) == 36
+            and str(uuid.UUID(run_id)) == run_id
+        )
+    except (ValueError, AttributeError):
+        canonical = False
+    if not canonical:
+        raise RunNotFoundError(run_id)
+
+
 def _migration_checksum(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -216,6 +229,7 @@ class PostgresRunStore:
         return self.get_run(run_id)
 
     def get_run(self, run_id: str) -> dict[str, Any]:
+        _require_canonical_run_id(run_id)
         with self._connection() as connection:
             row = connection.execute(
                 "select * from runs where run_id = %s", (run_id,)
@@ -227,6 +241,10 @@ class PostgresRunStore:
     def list_events(
         self, run_id: str, after_sequence: int = 0
     ) -> list[dict[str, Any]]:
+        try:
+            _require_canonical_run_id(run_id)
+        except RunNotFoundError:
+            return []  # Match SQLite's empty event list for a missing ID.
         with self._connection() as connection:
             rows = connection.execute(
                 """
@@ -409,6 +427,10 @@ class PostgresRunStore:
         """Claim one known run without consuming an unrelated queued run."""
         if lease_seconds <= 0:
             raise ValueError("lease_seconds must be positive")
+        try:
+            _require_canonical_run_id(run_id)
+        except RunNotFoundError:
+            return None  # A missing target must not consume any queued run.
         lease_duration = timedelta(seconds=lease_seconds)
         with self._connection() as connection, connection.transaction():
             self._finalize_abandoned_cancellations(connection)
@@ -1276,6 +1298,7 @@ class PostgresRunStore:
         *,
         for_update: bool = False,
     ) -> dict[str, Any]:
+        _require_canonical_run_id(run_id)
         suffix = " for update" if for_update else ""
         row = connection.execute(
             f"select * from runs where run_id = %s{suffix}", (run_id,)

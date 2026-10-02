@@ -280,6 +280,28 @@ class ControlledAccessTests(unittest.TestCase):
         self.assertEqual(client.get("/demo/runs/nonexistent").status_code, 404)
         self.assertEqual(authenticator.calls, 0)
 
+    def test_malformed_and_missing_ids_return_not_found_without_auth_bypass(self) -> None:
+        client, _ = self.client()
+        headers = {"authorization": "Bearer fixture-authorized-session"}
+        for run_id in (
+            "nonexistent", "0" * 36, "00000000-0000-0000-0000-000000000000",
+        ):
+            for method, suffix in (
+                ("GET", ""), ("GET", "/review"), ("GET", "/events"),
+                ("GET", "/events/stream"), ("POST", "/cancel"),
+            ):
+                path = f"/runs/{run_id}{suffix}"
+                with self.subTest(path=path):
+                    self.assertEqual(client.request(method, path).status_code, 401)
+                    response = client.request(method, path, headers=headers)
+                    self.assertEqual(response.status_code, 404)
+                    self.assertEqual(response.json(), {"detail": "run not found"})
+        development, _ = self.client(mode="development")
+        for run_id in ("nonexistent", "00000000-0000-0000-0000-000000000000"):
+            response = development.get(f"/demo/runs/{run_id}")
+            self.assertEqual(response.status_code, 404)
+            self.assertEqual(response.json(), {"detail": "demo run not found"})
+
     def test_controlled_application_has_no_schema_or_interactive_docs(self) -> None:
         client, _ = self.client()
         headers = {"authorization": "Bearer fixture-authorized-session"}

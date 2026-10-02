@@ -96,6 +96,25 @@ class PostgresIntegrationTests(unittest.TestCase):
         claimed_ids = {str(claim["run_id"]) for claim in claims if claim}
         self.assertEqual(claimed_ids, {str(run["run_id"]) for run in created})
 
+    def test_invalid_run_ids_are_not_found_without_mutating_existing_runs(self) -> None:
+        from forge_agent_core.run_store import RunNotFoundError
+
+        created = self.store.create_run(str(self.repository))
+        run_id = str(created["run_id"])
+        events = self.store.list_events(run_id)
+        for invalid in ("nonexistent", "0" * 36, run_id.replace("-", "")):
+            with self.subTest(run_id=invalid):
+                with self.assertRaises(RunNotFoundError):
+                    self.store.get_run(invalid)
+                with self.assertRaises(RunNotFoundError):
+                    self.store.cancel_run(invalid)
+                self.assertEqual(self.store.list_events(invalid), [])
+                self.assertIsNone(self.store.claim_run(invalid, "invalid-id-worker"))
+        with self.assertRaises(RunNotFoundError):
+            self.store.get_run("00000000-0000-0000-0000-000000000000")
+        self.assertEqual(self.store.get_run(run_id), created)
+        self.assertEqual(self.store.list_events(run_id), events)
+
     def test_stale_worker_transition_is_classified_as_lease_loss(self) -> None:
         import psycopg
         from forge_agent_core.run_store import (
