@@ -101,6 +101,9 @@ class PostgresIntegrationTests(unittest.TestCase):
 
         created = self.store.create_run(str(self.repository))
         run_id = str(created["run_id"])
+        # Retire only this fixture even if an assertion fails, so a later
+        # worker cannot claim it after the temporary repository is removed.
+        self.addCleanup(self.store.cancel_run, run_id)
         events = self.store.list_events(run_id)
         for invalid in ("nonexistent", "0" * 36, run_id.replace("-", "")):
             with self.subTest(run_id=invalid):

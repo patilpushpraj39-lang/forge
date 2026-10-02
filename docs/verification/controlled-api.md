@@ -1,7 +1,7 @@
 # Controlled API access verification
 
 - Date: 2026-10-02
-- Status: initial GitHub run failed on malformed PostgreSQL run IDs; fix locally verified, GitHub reproduction pending the next push
+- Status: run-ID regression passed in GitHub; fixture cleanup locally verified, full GitHub reproduction pending the next push
 - Paid model calls, live Clerk requests, and GitHub writes: none
 
 ## Behavior
@@ -78,11 +78,39 @@ that malformed reads, cancellation and claims leave an existing run and its
 events unchanged.
 
 After installing the existing PostgreSQL Python dependency into the local
-virtual environment, the latest full suite collected 166 tests: 154 passed
+virtual environment, the run-ID fix's local suite collected 166 tests: 154 passed
 and 12 skipped (4 Docker and 8 PostgreSQL integration tests without local
 configuration). All five adapter tests executed locally. Scaffold and
-whitespace checks passed. The new database-backed API/integration cases await
-the next GitHub run; this record does not claim that run has passed.
+whitespace checks passed.
+
+## Fixture cleanup follow-up
+
+[GitHub CI run 36997012426](https://github.com/patilpushpraj39-lang/forge/actions/runs/36997012426)
+at commit `0111270` passed the original failing API test, the new authenticated
+404 cases, all five adapter tests, and the real PostgreSQL invalid-ID test.
+However, the verify suite failed overall: 166 tests, 158 passed, 4 failed or
+errored, and 4 Docker tests skipped. The separate Docker abuse job passed;
+web typecheck/build did not execute.
+
+The new invalid-ID integration test left its unchanged fixture in `CREATED`.
+Its temporary repository was then deleted, but later worker tests could still
+claim that run. This interfered with their fixture selection and cascaded into
+missing repository/artifact and lease ownership errors. The fix registers
+`addCleanup` immediately after creation to cancel only that test's run, on both
+success and failure. The unchanged-run assertions still execute before cleanup.
+No production queue or run-store behavior is changed.
+
+Two database-free lifecycle checks run that same fixture method with disposable
+SQLite and the normal unittest cleanup lifecycle. They verify that both a
+successful test and an injected failure retire the run and leave no claimable
+work. Both checks failed before cleanup was added and passed afterward. These
+checks verify fixture lifecycle, not PostgreSQL behavior; the real database
+suite remains guarded by `FORGE_TEST_DATABASE_URL` and awaits the next CI run.
+
+The cleanup fix's local full suite collected 168 tests: 156 passed and 12
+skipped (4 Docker and 8 PostgreSQL integration tests without configuration).
+Scaffold validation and whitespace checks passed. No paid calls or deployment
+configuration changes were made.
 
 ## Remaining gates
 
