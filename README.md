@@ -118,6 +118,14 @@ durable approve/reject decisions, idempotent replay, stale-evidence rejection,
 and fail-closed review when a persisted patch is missing or altered. See the
 [offline HTTP verification record](docs/verification/offline-http.md).
 
+An opt-in controlled API profile now gates every run-data and command route on
+an authorized reviewer session, disables local-path/demo execution and API docs,
+and checks for PostgreSQL, digest-pinned Docker execution, explicit artifact
+storage, and one exact HTTPS web origin before opening dependencies. The local
+development defaults are unchanged. This backend safeguard is not deployment
+completion: authenticated web streaming and live integration checks remain.
+See the [controlled API guide](docs/operations/controlled-api.md).
+
 ## Product boundary
 
 Version 0.1 is intentionally narrow:

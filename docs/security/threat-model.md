@@ -31,6 +31,7 @@
 | Malicious Git tree | Repository uses traversal, case collision, link, submodule, or oversized content | Canonical path checks, link/submodule denial, hard file/count/size limits | Catalog rejection tests |
 | Parent checkout discovery | Patch tool treats a surrounding checkout as the sandbox repository | Clear Git overrides and stop discovery at the sandbox root | Nested-repository patch test |
 | Forged reviewer identity | Browser submits another user's actor ID | Verify a short-lived session token, derive actor server-side, enforce reviewer allowlist | Authentication and forged-field tests |
+| Exposed development API | Internet client reads run evidence or starts local-path/demo execution | Opt-in controlled startup profile; reviewer gate on every data/command route; disable development-only execution | Controlled profile and request-boundary tests |
 | Cross-user publication | A different signed-in user reuses an approval ID | Require publication actor to match the approval actor | Mismatched-actor API test |
 | Unauthorized write | Run pushes without approval | Patch-hash approval, outbox, GitHub permission check | Integration test |
 | Stale approval | Patch changes after approval | Approval binds repository, base SHA, patch SHA, action, and expiry | Mutation test |
@@ -49,6 +50,9 @@
 - Reviewer identity uses Clerk session verification and a server-side allowlist.
   The deployment remains single-tenant; repository-scoped multi-tenant policy
   is not yet implemented.
+- `FORGE_API_MODE=development` remains a loopback-only, trusted-fixture workflow.
+  Its development conveniences must not be exposed publicly. Controlled mode
+  adds an API boundary but does not establish a secure deployment by itself.
 - Model-provider handling of authorized repository content follows the configured account and API data policy.
 
 ## Out of scope for the first milestone

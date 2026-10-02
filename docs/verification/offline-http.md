@@ -1,7 +1,7 @@
 # Offline HTTP restart and integrity verification
 
 - Date: 2026-10-02
-- Status: local verification passed; new HTTP tests awaiting GitHub CI
+- Status: local verification and GitHub CI passed at commit `6319ba1`
 - Paid provider calls and GitHub writes: none
 
 ## New evidence
@@ -44,7 +44,9 @@ test cleanup. After changing the harness to graceful server shutdown, the full
 suite passed. No product authentication or publication protections were weakened.
 
 The standard CI Python discovery includes these tests without a separate opt-in.
-Their Linux/GitHub reproduction remains pending the next push. The earlier
+Their Linux/GitHub reproduction passed in
+[CI run 13](https://github.com/patilpushpraj39-lang/forge/actions/runs/36993792691)
+at commit `6319ba1`, with both `verify` and `sandbox-abuse` successful. The earlier
 Docker crash-cleanup change already passed
 [CI run 12](https://github.com/patilpushpraj39-lang/forge/actions/runs/36991989591)
 at commit `1e8d038`; that result does not include these new HTTP tests.

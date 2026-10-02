@@ -8,8 +8,7 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Annotated, Literal
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -42,18 +41,22 @@ from forge_sandbox_controller import (
 from forge_worker import OFFLINE_DEMO_OBJECTIVE, execute_offline_demo
 
 from .auth import (
-    ReviewerAuthenticationError,
-    ReviewerAuthenticationUnavailable,
     ReviewerAuthenticator,
     ReviewerAuthorizationError,
     ReviewerPrincipal,
     create_reviewer_authenticator,
 )
+from .access import (
+    authenticate_reviewer,
+    create_api_application,
+    validate_api_profile,
+)
 
 
+api_profile = validate_api_profile()
+reviewer_authenticator: ReviewerAuthenticator = create_reviewer_authenticator()
 store = create_run_store()
 controller = create_sandbox_controller()
-reviewer_authenticator: ReviewerAuthenticator = create_reviewer_authenticator()
 
 
 def _configured_github_catalog() -> GitHubCatalog | None:
@@ -76,20 +79,7 @@ def _configured_github_catalog() -> GitHubCatalog | None:
 
 
 github_catalog = _configured_github_catalog()
-app = FastAPI(title="Forge API", version="0.1.0-dev")
-allowed_web_origins = {
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-}
-if configured_web_origin := os.environ.get("FORGE_WEB_ORIGIN"):
-    allowed_web_origins.add(configured_web_origin)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=sorted(allowed_web_origins),
-    allow_credentials=False,
-    allow_methods=["GET", "POST"],
-    allow_headers=["authorization", "content-type"],
-)
+app = create_api_application(api_profile, reviewer_authenticator)
 
 
 class RunBudgetRequest(BaseModel):
@@ -267,14 +257,7 @@ def benchmark_dashboard(
 
 
 def require_reviewer(request: Request) -> ReviewerPrincipal:
-    try:
-        return reviewer_authenticator.authenticate(request)
-    except ReviewerAuthenticationUnavailable as error:
-        raise HTTPException(status_code=503, detail=str(error)) from error
-    except ReviewerAuthenticationError as error:
-        raise HTTPException(status_code=401, detail=str(error)) from error
-    except ReviewerAuthorizationError as error:
-        raise HTTPException(status_code=403, detail=str(error)) from error
+    return authenticate_reviewer(request, reviewer_authenticator)
 
 
 Reviewer = Annotated[ReviewerPrincipal, Depends(require_reviewer)]
