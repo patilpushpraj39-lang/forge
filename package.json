@@ -10,6 +10,7 @@
   "scripts": {
     "check:scaffold": "node scripts/validate-scaffold.mjs",
     "web:build": "pnpm --filter @forge/web build",
-    "web:typecheck": "pnpm --filter @forge/web typecheck"
+    "web:typecheck": "pnpm --filter @forge/web typecheck",
+    "web:test": "pnpm --filter @forge/web test"
   }
 }

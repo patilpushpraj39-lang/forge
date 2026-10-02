@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { ReviewerControls, useApiClient } from "../api-session";
 
 
 type RateMetric = {
@@ -76,8 +77,6 @@ type DashboardResponse = {
   records: BenchmarkRecord[];
 };
 
-const apiBase = process.env.NEXT_PUBLIC_FORGE_API_URL ?? "http://localhost:8000";
-
 function percent(metric: RateMetric): string {
   return metric.rate === null ? "Not available" : `${(metric.rate * 100).toFixed(1)}%`;
 }
@@ -115,6 +114,7 @@ async function responseJson(response: Response): Promise<DashboardResponse> {
 }
 
 export function BenchmarkDashboard() {
+  const api = useApiClient();
   const [category, setCategory] = useState("");
   const [taskSplit, setTaskSplit] = useState("");
   const [data, setData] = useState<DashboardResponse | null>(null);
@@ -122,26 +122,28 @@ export function BenchmarkDashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!api.ready) { setData(null); setLoading(false); return; }
     const controller = new AbortController();
     const query = new URLSearchParams();
     if (category) query.set("category", category);
     if (taskSplit) query.set("split", taskSplit);
     setLoading(true);
     setError(null);
-    fetch(`${apiBase}/benchmarks/latest${query.size ? `?${query}` : ""}`, {
+    api.request(`/benchmarks/latest${query.size ? `?${query}` : ""}`, {
       signal: controller.signal
     })
       .then(responseJson)
-      .then((payload) => setData(payload))
+      .then((payload) => { if (!controller.signal.aborted) setData(payload); })
       .catch((caught: unknown) => {
-        if (caught instanceof DOMException && caught.name === "AbortError") return;
+        if (controller.signal.aborted) return;
+        setData(null);
         setError(caught instanceof Error ? caught.message : "Unable to load benchmark evidence");
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [category, taskSplit]);
+  }, [api, category, taskSplit]);
 
   const records = useMemo(
     () =>
@@ -168,6 +170,7 @@ export function BenchmarkDashboard() {
         <Link href="/">Run console</Link>
         <div>
           <Link href="/demo">Offline demo</Link>
+          <ReviewerControls />
           <span>Forge evidence</span>
         </div>
       </nav>
@@ -186,6 +189,7 @@ export function BenchmarkDashboard() {
           </div>
         ) : null}
       </header>
+      {!api.ready ? <section className="benchmark-state" role="status">Sign in as an authorized reviewer to load benchmark evidence.</section> : null}
 
       {data ? <p className={`evidence-notice evidence-${classification}`}>{classificationMessage}</p> : null}
 

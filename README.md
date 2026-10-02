@@ -123,8 +123,11 @@ an authorized reviewer session, disables local-path/demo execution and API docs,
 and checks for PostgreSQL, digest-pinned Docker execution, explicit artifact
 storage, and one exact HTTPS web origin before opening dependencies. The local
 development defaults are unchanged. This backend safeguard is not deployment
-completion: authenticated web streaming and live integration checks remain.
-See the [controlled API guide](docs/operations/controlled-api.md).
+completion: live integration checks remain. The web console now sends reviewer
+sessions consistently and uses authenticated, cursor-replaying fetch streams;
+session rejection/sign-out clears its in-memory evidence. The trusted offline
+demo remains unchanged. See the [controlled API guide](docs/operations/controlled-api.md)
+and [authenticated web verification](docs/verification/authenticated-web.md).
 
 ## Product boundary
 
@@ -239,6 +242,7 @@ Run the current verification suite:
 ```bash
 python scripts/run-python-tests.py
 pnpm web:typecheck
+pnpm web:test
 pnpm web:build
 ```
 

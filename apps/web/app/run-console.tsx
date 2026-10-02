@@ -1,6 +1,8 @@
 "use client";
 
 import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
+import { useApiClient, webApiMode } from "./api-session";
+import type { ApiAuthentication } from "../lib/api-client";
 
 type Run = {
   run_id: string;
@@ -83,12 +85,7 @@ type ReviewerIdentity = {
   provider: string;
 };
 
-export type RunConsoleAuthentication = {
-  status: "loading" | "signed-out" | "signed-in" | "unconfigured";
-  getAccessToken?: () => Promise<string | null>;
-};
-
-const apiBase = process.env.NEXT_PUBLIC_FORGE_API_URL ?? "http://localhost:8000";
+export type RunConsoleAuthentication = ApiAuthentication;
 const terminalStates = new Set(["COMPLETED", "FAILED", "CANCELLED"]);
 
 async function responseJson<T>(response: Response): Promise<T> {
@@ -114,9 +111,10 @@ export function RunConsole({
   authentication: RunConsoleAuthentication;
   authControl?: ReactNode;
 }) {
+  const api = useApiClient();
   const [repositoryPath, setRepositoryPath] = useState("");
   const [objective, setObjective] = useState("");
-  const [publishToGitHub, setPublishToGitHub] = useState(false);
+  const [publishToGitHub, setPublishToGitHub] = useState(webApiMode === "controlled");
   const [installations, setInstallations] = useState<GitHubInstallation[]>([]);
   const [repositories, setRepositories] = useState<GitHubRepository[]>([]);
   const [installationId, setInstallationId] = useState("");
@@ -138,6 +136,7 @@ export function RunConsole({
     "This patch was generated in an isolated Forge workspace and passed independent evaluation."
   );
   const [error, setError] = useState<string | null>(null);
+  const [streamError, setStreamError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
   const runId = run?.run_id;
@@ -153,10 +152,12 @@ export function RunConsole({
   );
 
   useEffect(() => {
+    if (!api.ready) return;
     const restoredRunId = new URLSearchParams(window.location.search).get("run");
     if (!restoredRunId) return;
     let cancelled = false;
-    fetch(`${apiBase}/runs/${restoredRunId}`)
+    const controller = new AbortController();
+    api.request(`/runs/${encodeURIComponent(restoredRunId)}`, { signal: controller.signal })
       .then((response) => responseJson<Run>(response))
       .then((restoredRun) => {
         if (!cancelled) {
@@ -172,24 +173,19 @@ export function RunConsole({
       });
     return () => {
       cancelled = true;
+      controller.abort();
     };
-  }, []);
+  }, [api]);
 
   useEffect(() => {
     if (!publishToGitHub || installations.length > 0) return;
-    if (authentication.status !== "signed-in" || !authentication.getAccessToken) {
+    if (!api.ready || authentication.status !== "signed-in" || !authentication.getAccessToken) {
       return;
     }
     let cancelled = false;
     setError(null);
     setCatalogBusy(true);
-    authentication.getAccessToken()
-      .then((token) => {
-        if (!token) throw new Error("Sign in to load GitHub installations");
-        return fetch(`${apiBase}/github/installations`, {
-          headers: { authorization: `Bearer ${token}` }
-        });
-      })
+    api.request("/github/installations", {}, true)
       .then((response) => responseJson<GitHubInstallation[]>(response))
       .then((items) => {
         if (cancelled) return;
@@ -208,6 +204,7 @@ export function RunConsole({
       cancelled = true;
     };
   }, [
+    api,
     authentication.getAccessToken,
     authentication.status,
     installations.length,
@@ -220,19 +217,13 @@ export function RunConsole({
       setRepositoryName("");
       return;
     }
-    if (authentication.status !== "signed-in" || !authentication.getAccessToken) {
+    if (!api.ready || authentication.status !== "signed-in" || !authentication.getAccessToken) {
       return;
     }
     let cancelled = false;
     setError(null);
     setCatalogBusy(true);
-    authentication.getAccessToken()
-      .then((token) => {
-        if (!token) throw new Error("Sign in to load GitHub repositories");
-        return fetch(`${apiBase}/github/installations/${installationId}/repositories`, {
-          headers: { authorization: `Bearer ${token}` }
-        });
-      })
+    api.request(`/github/installations/${encodeURIComponent(installationId)}/repositories`, {}, true)
       .then((response) => responseJson<GitHubRepository[]>(response))
       .then((items) => {
         if (cancelled) return;
@@ -253,6 +244,7 @@ export function RunConsole({
       cancelled = true;
     };
   }, [
+    api,
     authentication.getAccessToken,
     authentication.status,
     installationId,
@@ -260,11 +252,9 @@ export function RunConsole({
   ]);
 
   useEffect(() => {
-    if (!runId) return;
-    const stream = new EventSource(`${apiBase}/runs/${runId}/events/stream?after=0`);
-    stream.onmessage = (message) => {
-      const event = JSON.parse(message.data) as RunEvent;
-      setError(null);
+    if (!runId || !api.ready) return;
+    const controller = new AbortController();
+    void api.stream(runId, { signal: controller.signal, onStatus: setStreamError, onEvent: (event) => {
       setEvents((current) =>
         current.some((item) => item.event_id === event.event_id)
           ? current
@@ -288,43 +278,38 @@ export function RunConsole({
             : current
         );
       }
-    };
-    stream.onerror = () => {
-      setError("The live event stream disconnected. It will retry automatically.");
-    };
-    return () => stream.close();
-  }, [runId]);
+    } }).catch((caught: unknown) => {
+      if (!controller.signal.aborted) setStreamError(caught instanceof Error ? caught.message : "Unable to load live progress.");
+    });
+    return () => controller.abort();
+  }, [api, runId]);
 
   useEffect(() => {
     if (
-      !runId ||
+      !api.ready || !runId ||
       !run ||
       !["AWAITING_APPROVAL", "PUBLISHING", "COMPLETED"].includes(run.state)
     ) {
       return;
     }
-    fetch(`${apiBase}/runs/${runId}/review`)
+    const controller = new AbortController();
+    api.request(`/runs/${encodeURIComponent(runId)}/review`, { signal: controller.signal })
       .then((response) => responseJson<Review>(response))
-      .then(setReview)
+      .then((evidence) => { if (!controller.signal.aborted) setReview(evidence); })
       .catch((caught: unknown) => {
-        setError(caught instanceof Error ? caught.message : "Unable to load review evidence");
+        if (!controller.signal.aborted) setError(caught instanceof Error ? caught.message : "Unable to load review evidence");
       });
-  }, [runId, run?.state]);
+    return () => controller.abort();
+  }, [api, runId, run?.state]);
 
   useEffect(() => {
-    if (authentication.status !== "signed-in" || !authentication.getAccessToken) {
+    if (!api.ready || authentication.status !== "signed-in" || !authentication.getAccessToken) {
       setReviewerIdentity(null);
       setAuthError(null);
       return;
     }
     let cancelled = false;
-    authentication.getAccessToken()
-      .then((token) => {
-        if (!token) throw new Error("Your reviewer session is unavailable");
-        return fetch(`${apiBase}/auth/me`, {
-          headers: { authorization: `Bearer ${token}` }
-        });
-      })
+    api.request("/auth/me", {}, true)
       .then((response) => responseJson<ReviewerIdentity>(response))
       .then((identity) => {
         if (!cancelled) {
@@ -343,21 +328,13 @@ export function RunConsole({
     return () => {
       cancelled = true;
     };
-  }, [authentication.status, authentication.getAccessToken]);
-
-  async function reviewerToken(): Promise<string> {
-    if (!authentication.getAccessToken) {
-      throw new Error("Reviewer authentication is not configured");
-    }
-    const token = await authentication.getAccessToken();
-    if (!token) throw new Error("Sign in before approving or publishing");
-    return token;
-  }
+  }, [api, authentication.status, authentication.getAccessToken]);
 
   async function createRun(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy("create");
     setError(null);
+    setRun(null);
     setEvents([]);
     setReview(null);
     setApproval(null);
@@ -378,15 +355,13 @@ export function RunConsole({
             objective
           }
         : { repository_path: repositoryPath, objective };
-      const token = publishToGitHub ? await reviewerToken() : null;
-      const response = await fetch(`${apiBase}${endpoint}`, {
+      const response = await api.request(endpoint, {
         method: "POST",
         headers: {
-          ...(token ? { authorization: `Bearer ${token}` } : {}),
           "content-type": "application/json"
         },
         body: JSON.stringify(body)
-      });
+      }, publishToGitHub);
       const createdRun = await responseJson<Run>(response);
       window.history.replaceState(
         null,
@@ -405,7 +380,7 @@ export function RunConsole({
     if (!run) return;
     setBusy("cancel");
     try {
-      const response = await fetch(`${apiBase}/runs/${run.run_id}/cancel`, {
+      const response = await api.request(`/runs/${encodeURIComponent(run.run_id)}/cancel`, {
         method: "POST"
       });
       setRun(await responseJson<Run>(response));
@@ -423,11 +398,9 @@ export function RunConsole({
     const idempotencyKey = approvalRequestKey ?? requestKey("approval");
     setApprovalRequestKey(idempotencyKey);
     try {
-      const token = await reviewerToken();
-      const response = await fetch(`${apiBase}/runs/${run.run_id}/approvals`, {
+      const response = await api.request(`/runs/${encodeURIComponent(run.run_id)}/approvals`, {
         method: "POST",
         headers: {
-          authorization: `Bearer ${token}`,
           "content-type": "application/json"
         },
         body: JSON.stringify({
@@ -436,7 +409,7 @@ export function RunConsole({
           approval_key: idempotencyKey,
           expires_in_seconds: 900
         })
-      });
+      }, true);
       setApproval(await responseJson<Approval>(response));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to approve patch");
@@ -452,11 +425,9 @@ export function RunConsole({
     const idempotencyKey = publicationRequestKey ?? requestKey("publication");
     setPublicationRequestKey(idempotencyKey);
     try {
-      const token = await reviewerToken();
-      const response = await fetch(`${apiBase}/runs/${run.run_id}/publish`, {
+      const response = await api.request(`/runs/${encodeURIComponent(run.run_id)}/publish`, {
         method: "POST",
         headers: {
-          authorization: `Bearer ${token}`,
           "content-type": "application/json"
         },
         body: JSON.stringify({
@@ -466,7 +437,7 @@ export function RunConsole({
           body: prBody,
           idempotency_key: idempotencyKey
         })
-      });
+      }, true);
       setPublication(await responseJson<Publication>(response));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to request publication");
@@ -491,6 +462,7 @@ export function RunConsole({
         </div>
         {authControl}
       </div>
+      {!api.ready ? <p className="auth-note" role="status">Sign in as an authorized reviewer to load protected run evidence.</p> : null}
       <form onSubmit={createRun} className="run-form">
         <div className="section-title">
           <span className="step">01</span>
@@ -524,6 +496,7 @@ export function RunConsole({
           <input
             type="checkbox"
             checked={publishToGitHub}
+            disabled={webApiMode === "controlled"}
             onChange={(event) => setPublishToGitHub(event.target.checked)}
           />
           <span>
@@ -596,7 +569,7 @@ export function RunConsole({
         <div className="form-actions">
           <p>Hard limits protect cost, time, tool use, and patch attempts.</p>
           <button
-            disabled={busy === "create" || catalogBusy || (publishToGitHub && !reviewerIdentity)}
+            disabled={!api.ready || busy === "create" || catalogBusy || (publishToGitHub && !reviewerIdentity)}
             type="submit"
           >
             {busy === "create" ? "Capturing source…" : "Create bounded run"}
@@ -605,6 +578,7 @@ export function RunConsole({
       </form>
 
       {error ? <p className="error" role="alert">{error}</p> : null}
+      {streamError ? <p className="error" role="status">{streamError}</p> : null}
 
       {run ? (
         <section className="run-summary">

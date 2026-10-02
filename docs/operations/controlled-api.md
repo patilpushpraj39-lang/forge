@@ -65,11 +65,38 @@ invalid locally signed sessions through the actual Clerk verifier, origin
 policy, disabled local execution, disabled docs, SSE chunk preservation, and
 WebSocket denial. These tests use fixture identities, not a live Clerk account.
 
-Do not switch your current demo to controlled mode yet. The existing web console
-still uses unauthenticated fetches for some run/benchmark reads and native
-`EventSource` for SSE, which cannot attach the required bearer header. A later
-slice must replace that stream with an authenticated, reconnecting fetch stream,
-attach session headers consistently, and verify sign-in/expiry behavior.
+Do not switch your current demo to controlled mode yet. The web console now
+uses a shared bearer-authenticated transport for run restoration, review,
+cancellation, GitHub operations, benchmark reads, and fetch-based SSE. Before
+a future controlled deployment, build the web app with
+`NEXT_PUBLIC_FORGE_API_MODE=controlled`, the exact HTTPS
+`NEXT_PUBLIC_FORGE_API_URL`, and `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`; match the
+backend profile and authorized web origin. These public values are build-time
+configuration, not secrets. Never put an API key or Clerk secret in a public
+environment variable. Keep both profiles in `development` for today's free demo.
+
+The controlled console waits for a signed-in session before fetching evidence,
+requires GitHub ingestion rather than local paths, and disables the offline
+demo page. GET requests refresh a rejected session token once; mutations are
+never automatically replayed. A final 401 or any 403 blocks the session scope,
+clears rendered evidence, and asks the reviewer to sign out/re-sign in or switch
+accounts. Signing out or changing the active session remounts consumers and
+aborts their requests. Token strings stay in memory and headers, not URLs,
+local storage or logs; protected requests do not use browser credential cookies
+or caches and reject redirects.
+
+The stream accepts only complete, validated, contiguous sequence events;
+comments and split UTF-8/line endings are handled incrementally. Reconnects
+request `after=<last accepted sequence>`, deduplicate replay, and fetch a token
+again. Connections rotate every 45 seconds to reauthenticate; transient
+failures use bounded backoff and stop after five consecutive unproductive
+attempts. This is periodic reauthentication, not instant revocation of an
+already-open connection. Proxy timeouts, buffering and live session changes
+still require deployment-environment validation.
+
+Run `pnpm web:test` for the deterministic transport regression suite. See the
+[authenticated web verification record](../verification/authenticated-web.md)
+for tested cases and the remaining live sign-in gate.
 
 Before deployment, also verify live Clerk and GitHub App integration, align the
 worker/publisher environment with this policy, protect database and artifact

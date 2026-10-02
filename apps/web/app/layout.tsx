@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { ClerkProvider } from "@clerk/nextjs";
+import { ApiSessionProvider } from "./api-session";
 
 import "./styles.css";
 
@@ -15,8 +16,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en">
       <body>
         {publishableKey ? (
-          <ClerkProvider publishableKey={publishableKey}>{children}</ClerkProvider>
-        ) : children}
+          <ClerkProvider publishableKey={publishableKey}><ApiSessionProvider>{children}</ApiSessionProvider></ClerkProvider>
+        ) : <ApiSessionProvider>{children}</ApiSessionProvider>}
       </body>
     </html>
   );

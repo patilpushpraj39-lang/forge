@@ -1,7 +1,7 @@
 # Controlled API access verification
 
 - Date: 2026-10-02
-- Status: run-ID regression passed in GitHub; fixture cleanup locally verified, full GitHub reproduction pending the next push
+- Status: backend, run-ID regression and fixture cleanup reproduced successfully in GitHub
 - Paid model calls, live Clerk requests, and GitHub writes: none
 
 ## Behavior
@@ -112,11 +112,17 @@ skipped (4 Docker and 8 PostgreSQL integration tests without configuration).
 Scaffold validation and whitespace checks passed. No paid calls or deployment
 configuration changes were made.
 
+[GitHub CI run 36997821469](https://github.com/patilpushpraj39-lang/forge/actions/runs/36997821469)
+at `3d1298d` passed: 168 Python tests, 164 passed and 4 Docker skips in the
+verify job. All eight real PostgreSQL cases and both lifecycle checks passed.
+The separate Docker abuse job, web typecheck and production build also passed.
+
 ## Remaining gates
 
 This is a backend access-control slice, not a completed deployment. Authenticated
-web reads and reconnecting SSE are still required: the current console has
-unauthenticated fetches and a native EventSource. Other open gates include live
+web reads and reconnecting SSE are now implemented; see the
+[web verification record](authenticated-web.md) for local evidence and limits.
+Open gates include live
 Clerk/GitHub integration, consistent worker/publisher policy, deployment TLS and
 rate limits, storage/recovery/backups, and the product's launch evidence. The
 guard supplies single-tenant reviewer access, not repository-scoped multi-tenant
