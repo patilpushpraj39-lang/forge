@@ -17,7 +17,7 @@ from forge_agent_core import (
     SqliteIdempotencyLedger,
     create_run_store,
 )
-from forge_agent_core.run_store import RunState, TERMINAL_STATES
+from forge_agent_core.run_store import LeaseOwnershipError, RunState, TERMINAL_STATES
 from forge_sandbox_controller import (
     ArtifactRef,
     CommandStatus,
@@ -66,6 +66,11 @@ def execute_bounded_command(
         ),
         heartbeat_interval_seconds=max(0.05, lease_seconds / 3),
     )
+
+    if result.status != CommandStatus.CANCELLED:
+        # Fast commands can finish before their first periodic heartbeat.
+        # Check ownership before recording their result or changing run state.
+        store.renew_lease(run_id, worker_id, lease_seconds)
 
     if result.status == CommandStatus.CANCELLED:
         store.append_event(
@@ -166,7 +171,18 @@ def execute_claimed_run(
     repository_path = Path(str(run["repository_path"]))
     sandbox_id: str | None = None
     sandbox_controller = controller or create_sandbox_controller()
+
+    def record_lease_loss() -> None:
+        store.append_event(
+            run_id,
+            "worker_lease_lost",
+            "worker",
+            {"worker_id": worker_id, "attempt": int(run["attempt"])},
+        )
+
     try:
+        # A queued claim may already have been recovered before it reaches us.
+        store.renew_lease(run_id, worker_id, lease_seconds)
         if store.is_cancellation_requested(run_id):
             store.acknowledge_cancellation(run_id, worker_id)
             return
@@ -270,17 +286,25 @@ def execute_claimed_run(
                 "worker",
                 lease_owner=worker_id,
             )
+    except LeaseOwnershipError:
+        # Losing a lease is coordination, not a failure of the replacement run.
+        record_lease_loss()
     except Exception as error:
-        current = RunState(store.get_run(run_id)["state"])
-        if current not in TERMINAL_STATES:
-            store.transition(
-                run_id,
-                current,
-                RunState.FAILED,
-                "worker",
-                {"reason": type(error).__name__, "message": str(error)[:512]},
-                lease_owner=worker_id,
-            )
+        try:
+            current = RunState(store.get_run(run_id)["state"])
+            if current not in TERMINAL_STATES:
+                store.transition(
+                    run_id,
+                    current,
+                    RunState.FAILED,
+                    "worker",
+                    {"reason": type(error).__name__, "message": str(error)[:512]},
+                    lease_owner=worker_id,
+                )
+        except LeaseOwnershipError:
+            # Recovery can race the attempt to record an infrastructure failure.
+            record_lease_loss()
+            return
         raise
     finally:
         if sandbox_id is not None:

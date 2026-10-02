@@ -76,3 +76,11 @@ cleanup also fails. Each checks process termination and output-pipe closure.
 The local suite ran 118 tests: 109 passed and 9 skipped (3 Docker and 6 PostgreSQL).
 No provider calls were made. These checks do not replace real Docker CI evidence
 or prove cleanup when the host operating system itself denies termination.
+
+## Docker CI gate confirmed (2026-10-02)
+
+[CI run 10](https://github.com/patilpushpraj39-lang/forge/actions/runs/36977620664)
+passed for commit `9448537`, including the main verification and Docker abuse
+jobs. This closes the previously pending Docker abuse CI gate for that commit.
+Later worker-recovery changes are documented in
+[the recovery verification record](worker-recovery.md) and need their own CI run.

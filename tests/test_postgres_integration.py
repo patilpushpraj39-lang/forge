@@ -96,6 +96,44 @@ class PostgresIntegrationTests(unittest.TestCase):
         claimed_ids = {str(claim["run_id"]) for claim in claims if claim}
         self.assertEqual(claimed_ids, {str(run["run_id"]) for run in created})
 
+    def test_stale_worker_transition_is_classified_as_lease_loss(self) -> None:
+        import psycopg
+        from forge_agent_core.run_store import (
+            InvalidTransitionError, LeaseOwnershipError, RunState,
+        )
+
+        run_id = str(self.store.create_run(str(self.repository))["run_id"])
+        self.assertIsNotNone(self.store.claim_run(run_id, "stale-worker"))
+        self.store.transition(
+            run_id, RunState.SNAPSHOTTING, RunState.EXECUTING,
+            "worker", lease_owner="stale-worker",
+        )
+        with psycopg.connect(self.database_url) as connection:
+            connection.execute(
+                "update runs set lease_expires_at = clock_timestamp() - interval '1 second' "
+                "where run_id = %s", (run_id,),
+            )
+        self.assertIsNotNone(self.store.claim_run(run_id, "replacement-worker"))
+        with self.assertRaises(LeaseOwnershipError):
+            self.store.transition(
+                run_id, RunState.EXECUTING, RunState.FAILED,
+                "worker", lease_owner="stale-worker",
+            )
+        with self.assertRaises(InvalidTransitionError):
+            self.store.transition(
+                run_id, RunState.EXECUTING, RunState.FAILED,
+                "worker", lease_owner="replacement-worker",
+            )
+        self.assertEqual(self.store.get_run(run_id)["attempt"], 2)
+        self.store.transition(
+            run_id, RunState.SNAPSHOTTING, RunState.EXECUTING,
+            "worker", lease_owner="replacement-worker",
+        )
+        self.store.transition(
+            run_id, RunState.EXECUTING, RunState.COMPLETED,
+            "worker", lease_owner="replacement-worker",
+        )
+
     def test_agent_idempotency_survives_ledger_recreation(self) -> None:
         from forge_agent_core.idempotency import PostgresIdempotencyLedger
         from forge_agent_core.model_runtime import (

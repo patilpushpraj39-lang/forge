@@ -262,13 +262,13 @@ class PostgresRunStore:
     ) -> dict[str, Any]:
         with self._connection() as connection, connection.transaction():
             row = self._require_run(connection, run_id, for_update=True)
+            if lease_owner is not None:
+                self._require_lease_owner(row, lease_owner)
             current = RunState(row["state"])
             if current != expected:
                 raise InvalidTransitionError(
                     f"expected {expected}, found {current} for run {run_id}"
                 )
-            if lease_owner is not None:
-                self._require_lease_owner(row, lease_owner)
             clear_lease = target in LEASE_RELEASE_STATES
             evaluation_hashes: tuple[str, str] | None = None
             if target == RunState.AWAITING_APPROVAL:
