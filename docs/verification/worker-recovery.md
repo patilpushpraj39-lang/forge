@@ -1,7 +1,7 @@
 # Worker lease-loss recovery
 
 - Date: 2026-10-02
-- Status: local regression checks passed; updated PostgreSQL CI check pending
+- Status: verified in CI for commit `c4801f6`
 - Provider/model calls: none
 
 ## Behavior
@@ -40,14 +40,16 @@ the wrong expected state still raises `InvalidTransitionError`.
 The local suite ran 124 tests: 114 passed and 10 skipped (3 Docker and 7
 PostgreSQL). The prior commit `9448537` passed
 [CI run 10](https://github.com/patilpushpraj39-lang/forge/actions/runs/36977620664),
-including the Docker abuse gate. That prior result does not verify these new
-recovery changes; they require a fresh CI run after push.
+including the Docker abuse gate. The worker recovery changes subsequently passed
+[CI run 11](https://github.com/patilpushpraj39-lang/forge/actions/runs/36978751324)
+at commit `c4801f6`, including the PostgreSQL check. The later orphan-container
+cleanup slice has [its own verification record](orphan-cleanup.md) and CI gate.
 
 ## Limits and follow-up
 
 These tests force lease expiry in a disposable database and exercise a live
 old command. They do not simulate a killed worker service or a host crash.
-Orphan-container cleanup after abrupt process death still needs separate proof.
+Orphan-container cleanup after abrupt process death has a separate pending proof.
 
 Workers must have distinct IDs. This slice does not add attempt-number fencing
 to every artifact/event write, prove exactly-once external execution, or resume

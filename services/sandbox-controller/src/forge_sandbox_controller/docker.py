@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import re
 import subprocess
 import time
@@ -16,6 +17,7 @@ from .protocol import (
     CommandStatus,
     SandboxHandle,
 )
+from .recovery import DEADLINE_LABEL, SCOPE_LABEL, validate_cleanup_scope
 
 
 IMAGE_DIGEST_PATTERN = re.compile(r"^.+@sha256:[0-9a-f]{64}$")
@@ -52,6 +54,8 @@ def build_docker_run_command(
     container_name: str,
     command: Sequence[str],
     policy: ContainerPolicy,
+    cleanup_scope: str | None = None,
+    cleanup_deadline: int | None = None,
 ) -> list[str]:
     if not IMAGE_DIGEST_PATTERN.fullmatch(image):
         raise ValueError("sandbox image must be pinned by SHA-256 digest")
@@ -60,6 +64,15 @@ def build_docker_run_command(
         raise ValueError("workspace path cannot contain a comma")
     memory = f"{policy.memory_megabytes}m"
     temporary = f"{policy.temporary_megabytes}m"
+    cleanup_labels: list[str] = []
+    if cleanup_scope is not None or cleanup_deadline is not None:
+        if cleanup_scope is None or type(cleanup_deadline) is not int or cleanup_deadline <= 0:
+            raise ValueError("cleanup labels require a scope and positive integer deadline")
+        validate_cleanup_scope(cleanup_scope)
+        cleanup_labels = [
+            "--label", f"{SCOPE_LABEL}={cleanup_scope}",
+            "--label", f"{DEADLINE_LABEL}={cleanup_deadline}",
+        ]
     return [
         docker_binary,
         "run",
@@ -101,6 +114,7 @@ def build_docker_run_command(
         "PYTHONDONTWRITEBYTECODE=1",
         "--label",
         "forge.sandbox=true",
+        *cleanup_labels,
         image,
         *command,
     ]
@@ -122,13 +136,20 @@ class DockerSandboxController(LocalSandboxController):
         policy: ContainerPolicy | None = None,
         docker_binary: str = "docker",
         artifact_store: ArtifactStore | None = None,
+        cleanup_scope: str = "development",
+        cleanup_grace_seconds: float = 30,
     ) -> None:
         if not IMAGE_DIGEST_PATTERN.fullmatch(image):
             raise ValueError("sandbox image must be pinned by SHA-256 digest")
+        validate_cleanup_scope(cleanup_scope)
+        if not math.isfinite(cleanup_grace_seconds) or cleanup_grace_seconds < 0:
+            raise ValueError("cleanup grace must be finite and nonnegative")
         super().__init__(artifact_store)
         self.image = image
         self.policy = policy or ContainerPolicy()
         self.docker_binary = docker_binary
+        self.cleanup_scope = cleanup_scope
+        self.cleanup_grace_seconds = cleanup_grace_seconds
 
     def create(self, repository_path: Path) -> SandboxHandle:
         handle = super().create(repository_path)
@@ -150,7 +171,7 @@ class DockerSandboxController(LocalSandboxController):
         heartbeat_interval_seconds: float,
         output_limit_bytes: int = 4096,
     ) -> CommandResult:
-        if timeout_seconds <= 0:
+        if not math.isfinite(timeout_seconds) or timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")
         if heartbeat_interval_seconds <= 0:
             raise ValueError("heartbeat_interval_seconds must be positive")
@@ -165,6 +186,8 @@ class DockerSandboxController(LocalSandboxController):
             container_name=container_name,
             command=command,
             policy=self.policy,
+            cleanup_scope=self.cleanup_scope,
+            cleanup_deadline=math.ceil(time.time() + timeout_seconds + self.cleanup_grace_seconds),
         )
         last_size_check = 0.0
         size_exceeded = False

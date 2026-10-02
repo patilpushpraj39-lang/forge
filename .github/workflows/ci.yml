@@ -79,3 +79,8 @@ jobs:
           -s tests
           -p 'test_docker_sandbox.py'
           -v
+      - run: >-
+          python -m unittest discover
+          -s tests
+          -p 'test_sandbox_recovery.py'
+          -v

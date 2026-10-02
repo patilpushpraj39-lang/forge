@@ -23,6 +23,41 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class DockerPolicyCommandTests(unittest.TestCase):
+    def test_execution_labels_include_scope_and_budget_plus_grace(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            repository = Path(directory) / "source"
+            repository.mkdir()
+            controller = DockerSandboxController(
+                PINNED_FIXTURE_IMAGE, cleanup_scope="deployment-one",
+                cleanup_grace_seconds=30,
+            )
+            sandbox = controller.create(repository)
+            try:
+                with patch("forge_sandbox_controller.docker.time.time", return_value=100.25), patch(
+                    "forge_sandbox_controller.docker._run_bounded_process",
+                    return_value=CommandResult(CommandStatus.COMPLETED, 0, "ok"),
+                ) as run:
+                    controller.execute(
+                        sandbox.sandbox_id, ("python", "-V"), timeout_seconds=2.5,
+                        should_cancel=lambda: False, heartbeat=lambda: None,
+                        heartbeat_interval_seconds=0.2,
+                    )
+                command = run.call_args.args[0]
+                self.assertIn("forge.cleanup.scope=deployment-one", command)
+                self.assertIn("forge.cleanup.deadline=133", command)
+                self.assertEqual(command[-3:], [PINNED_FIXTURE_IMAGE, "python", "-V"])
+            finally:
+                controller.destroy(sandbox.sandbox_id)
+
+    def test_invalid_cleanup_configuration_is_rejected(self) -> None:
+        for options in (
+            {"cleanup_scope": "*"},
+            {"cleanup_grace_seconds": -1},
+            {"cleanup_grace_seconds": float("nan")},
+        ):
+            with self.subTest(options=options), self.assertRaises(ValueError):
+                DockerSandboxController(PINNED_FIXTURE_IMAGE, **options)
+
     def test_fast_command_exit_refreshes_workspace_resource_usage(self) -> None:
         for status in (CommandStatus.COMPLETED, CommandStatus.FAILED):
             with self.subTest(status=status), tempfile.TemporaryDirectory() as directory:

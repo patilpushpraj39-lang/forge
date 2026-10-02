@@ -44,5 +44,9 @@ def create_sandbox_controller() -> SandboxController:
             raise RuntimeError(
                 "FORGE_SANDBOX_IMAGE is required for the Docker backend"
             )
-        return DockerSandboxController(image, artifact_store=artifact_store)
+        return DockerSandboxController(
+            image,
+            artifact_store=artifact_store,
+            cleanup_scope=os.environ.get("FORGE_SANDBOX_SCOPE", "development"),
+        )
     raise RuntimeError(f"unsupported sandbox backend: {backend}")

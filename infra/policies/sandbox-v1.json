@@ -31,6 +31,11 @@
   },
   "lifecycle": {
     "container_per_command": true,
-    "remove_after_command": true
+    "remove_after_command": true,
+    "cleanup_scope_label": "forge.cleanup.scope",
+    "cleanup_deadline_label": "forge.cleanup.deadline",
+    "cleanup_grace_seconds": 30,
+    "orphan_cleanup_default": "preview",
+    "host_file_deletion": false
   }
 }
