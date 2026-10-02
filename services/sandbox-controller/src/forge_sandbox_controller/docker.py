@@ -169,10 +169,10 @@ class DockerSandboxController(LocalSandboxController):
         last_size_check = 0.0
         size_exceeded = False
 
-        def workspace_exceeded() -> bool:
+        def workspace_exceeded(*, refresh: bool = False) -> bool:
             nonlocal last_size_check, size_exceeded
             now = time.monotonic()
-            if now - last_size_check < 0.2:
+            if not refresh and now - last_size_check < 0.2:
                 return size_exceeded
             last_size_check = now
             size_exceeded = (
@@ -196,7 +196,8 @@ class DockerSandboxController(LocalSandboxController):
         )
         if (
             result.status in {CommandStatus.COMPLETED, CommandStatus.FAILED}
-            and workspace_exceeded()
+            # A fast write can finish between polling intervals.
+            and workspace_exceeded(refresh=True)
         ):
             return CommandResult(
                 CommandStatus.RESOURCE_LIMIT,

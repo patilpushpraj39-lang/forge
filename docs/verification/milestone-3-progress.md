@@ -41,3 +41,23 @@ repository digest, then exercises:
 
 The job has a ten-minute outer timeout. Each individual abuse command has an
 eight-second bound. Milestone 3 remains open until this job passes.
+
+## CI diagnosis and final disk check (2026-10-02)
+
+[CI run 9](https://github.com/patilpushpraj39-lang/forge/actions/runs/36573483264)
+tested commit `03ad551`. The main verification job passed. Docker's network,
+secret, root-filesystem, background-process, and memory tests passed. The output
+and process checks also passed before the combined resource test failed at its
+disk assertion.
+
+Docker enforced the file-size limit (`OSError: [Errno 27] File too large`),
+but the controller reported `FAILED` instead of `RESOURCE_LIMIT`. Its final
+workspace measurement reused a value cached during the previous 200 ms polling
+interval. The final check now always refreshes disk usage after normal or failed
+command exit. The periodic running-command checks retain their polling interval.
+
+A deterministic regression simulates a command writing up to the kernel file
+limit and exiting within one polling interval. Both successful and failed exits
+must report the aggregate workspace limit violation. The local suite ran 113
+tests: 104 passed and 9 skipped (3 Docker and 6 PostgreSQL). No provider calls
+were made. The updated real Docker CI run is still required to close this gate.
