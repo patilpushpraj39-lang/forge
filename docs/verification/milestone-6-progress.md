@@ -168,3 +168,64 @@ therefore no longer listed as open. Live controlled-profile Clerk approval and
 GitHub App publication remain separate, unfinished integration gates. See the
 [free development checkpoint](free-development-checkpoint.md) for job counts
 and the distinct Docker test lane.
+
+## Read-only AI pilot offline preview
+
+On 3 October 2026, a provider-free preview command was added for the completed
+no-model README smoke check's immutable source. It reads SQLite in read-only
+mode, validates the expected disposable repository and commit, verifies archive
+size/checksum, and reads a sole regular UTF-8 README in memory without extraction
+or execution. The live local preview verified the existing 60-byte README and
+the same SHA-256 recorded by the smoke check. It displayed the proposed exact
+no-tools request and price assumptions without changing the completed run,
+reading credentials, contacting OpenAI or writing to GitHub.
+
+The proposed request uses the existing `gpt-6-sol` model, default tier, reasoning
+`none`, `store=false`, and 512 output tokens. A pure exact-input-count validator
+limits input to 2048 tokens and computes a conservative conditional token-charge
+estimate of $0.011264, below a proposed $0.02 allowance. This is not a billing
+guarantee or an executed request. The preview has no execution option; exact
+provider counting, consent, current account/model readiness, a durable
+one-attempt guard and retry-free execution remain required. The generic worker's
+request-level spending enforcement is not changed by this preparation. See the
+[read-only pilot preparation guide](../operations/readonly-ai-pilot.md).
+
+Thirteen new offline tests passed. After fixing a Windows file-handle cleanup
+issue in the new test fixture, the full local Python suite passed: 206 tests,
+194 passed and 12 PostgreSQL/Docker environment-dependent skips (not passes).
+The existing website and API both responded to the read-only local health check.
+No paid generation, AI task-quality, controlled-profile or publication gate was
+closed, and no source content was transmitted to a model provider.
+
+## Free read-only safeguard rehearsal
+
+Later on 3 October 2026, the owner chose to continue free development while API
+funding/payment support remained unresolved. A separate fixture-only rehearsal
+was added; it has no live/execute option, reads no credentials/configuration or
+saved Forge run, and rejects real/custom provider adapters. The preview's request
+builder, fixed price/limit payload and canonical fingerprint calculation are
+shared with the rehearsal without changing the proposed request.
+
+The rehearsal validates the reviewed fingerprint/content, simulated confirmation,
+fixed no-tools request, same-day simulated price review and allowance. It gates
+generation on a valid bounded fake input count and estimated maximum charge.
+An independent SQLite journal commits a unique reservation before counting and
+a generation-start marker before the fake call. It blocks duplicate attempts
+across journal reopen, concurrent calls, timeout, interrupted process, incomplete
+response and malformed usage/tool output; no automatic retry exists. Counter
+mutation cannot change generation input, and a failed journal-start commit
+prevents generation. Journal records exclude source/response/error text.
+
+Twenty-two new rehearsal tests and all thirteen preview tests passed. The CLI
+reported `SIMULATED_COMPLETED`, one fake generation, duplicate-attempt blocking,
+zero real provider calls and zero actual charges, then removed its own temporary
+fixture/journal. This is a fixed invented response and token count, not observed
+AI inference or a real tokenizer. The full local Python suite passed: 228 tests,
+216 passed and 12 PostgreSQL/Docker environment-dependent skips (not passes).
+All 44 web tests passed, and both local servers responded to the health check.
+
+The real paid pilot, provider counting/SDK retry configuration, AI task quality,
+general worker request-level spending enforcement, controlled-profile and live
+publication gates remain open. No payment settings, API keys, live Forge runs,
+repository contents or GitHub publication were changed by this rehearsal. See
+the [free rehearsal guide](../operations/readonly-ai-pilot.md#free-safeguard-rehearsal-no-card-or-api-key).
