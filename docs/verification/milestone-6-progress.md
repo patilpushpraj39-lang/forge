@@ -46,7 +46,6 @@ are not counted as milestone completion evidence.
 ## Exit gates still open
 
 - Controlled live Clerk sign-in and approval proof.
-- Public CI execution of the PostgreSQL approval/publication migration.
 - Controlled live GitHub App proof of catalog discovery, immutable ingestion,
   one pull-request creation, and ambiguous-retry recovery without duplication.
 
@@ -59,3 +58,13 @@ to `/auth/me` returned 401. These checks do not close the controlled-profile
 approval or GitHub publishing gates above. See the
 [authenticated web verification record](authenticated-web.md) for provenance,
 scope and remaining live checks. No paid model calls or GitHub writes were made.
+
+## PostgreSQL CI gate reproduced
+
+[CI #18 at `733ce1d`](https://github.com/patilpushpraj39-lang/forge/actions/runs/37109800643)
+passed all eight real PostgreSQL integration cases, including the migration and
+patch-bound approval/publication outbox cases. The public PostgreSQL gate is
+therefore no longer listed as open. Live controlled-profile Clerk approval and
+GitHub App publication remain separate, unfinished integration gates. See the
+[free development checkpoint](free-development-checkpoint.md) for job counts
+and the distinct Docker test lane.

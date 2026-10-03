@@ -87,8 +87,7 @@ approvals cannot publish and retries create at most one pull request. Reviewer
 identity now comes from a verified Clerk session and an explicit server-side
 allowlist; the browser cannot choose the approval actor. Local Clerk development
 sign-in and user-reported sign-out/sign-in checks now have recorded evidence;
-controlled-profile approval, live GitHub proofs and public PostgreSQL CI
-evidence remain before the milestone is
+controlled-profile approval and live GitHub proofs remain before the milestone is
 complete. See the
 [approval and publishing architecture](docs/architecture/approval-publishing.md)
 and [Milestone 6 progress record](docs/verification/milestone-6-progress.md).
@@ -135,6 +134,8 @@ The [3 October free development checkpoint](docs/verification/free-development-c
 records 156 passing local Python tests (12 environment-dependent skips), 30
 passing web tests, and an isolated production build/standalone serving check.
 These checks do not constitute deployment or live model-quality evidence.
+GitHub CI #18 reproduced the checkpoint, including real PostgreSQL integration
+and separate Docker abuse/recovery tests.
 
 ## Product boundary
 
@@ -237,6 +238,16 @@ benchmark or model-quality evidence.
 The [offline verification guide](docs/operations/offline-verification.md)
 explains how to check review persistence and run the isolated HTTP restart
 tests without touching your normal demo database or requiring an API key.
+
+To check the local services from a new terminal without starting a run:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/check-local.py
+```
+
+This read-only command needs no API key and makes no model calls. See the
+[local health-check guide](docs/operations/local-health-check.md) for failures,
+limits, and why local availability is different from public hosting.
 
 After creating a run, advance one queued run from a third terminal:
 

@@ -114,8 +114,8 @@ or cancelled checks cannot accept a late identity. No access policy was weakened
   and cancellation while token retrieval ignores abort.
 - TypeScript checking passed. No dependency was added or replaced.
 - The new cases are included in the existing `pnpm web:test` CI command.
-- Live browser validation of the new reviewer-failure display and CI
-  reproduction remain pending; the user's earlier successful local sign-in
+- Live browser validation of the new reviewer-failure display remains pending;
+  CI reproduction passed at `733ce1d`. The user's earlier successful local sign-in
   and demo checks predate this presentation change.
 
 ## Optional GitHub catalog warning follow-up
@@ -140,7 +140,7 @@ separately so one completed request cannot clear another request's loading state
   deselection. A rapid select/deselect check also ended without a stuck loading
   state. No run was submitted, paid model call made, or GitHub write performed.
 - The existing successful reviewer identity was visible during this check.
-  Reviewer-failure browser scenarios and CI remain unverified for these changes.
+  Reviewer-failure browser scenarios remain unverified; CI passed at `733ce1d`.
   The subsequent isolated production build and standalone smoke checks passed;
   see the [free development checkpoint](free-development-checkpoint.md) for their
   credential-free configuration and limits.
