@@ -32,7 +32,7 @@ class Authenticator:
         return ReviewerPrincipal("clerk:fixture", "fixture", "clerk")
 
 
-class ReadonlyPreviewApiTests(unittest.TestCase):
+class ReadonlyPreviewFixture(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
@@ -80,6 +80,8 @@ class ReadonlyPreviewApiTests(unittest.TestCase):
         return {"scope": SCOPE, "repository": "octo/fixture", "plan_sha256": self.preview()["plan"]["plan_sha256"],
                 "decision": "approved", "decision_key": "fixture-decision-key", "acknowledge_record_only": True, **changes}
 
+
+class ReadonlyPreviewApiTests(ReadonlyPreviewFixture):
     def test_preview_matches_cli_and_never_changes_source_run(self):
         before = self.store.get_run(self.run_id)
         events = self.store.list_events(self.run_id)

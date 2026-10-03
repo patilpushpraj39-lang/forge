@@ -54,6 +54,10 @@ CORS is not authentication. TLS termination must be provided separately.
 
 ## Checks and remaining work
 
+For the free isolated approved-user preview/receipt checkpoint, see
+[approved-user access checks](approved-user-access-checkpoint.md). That check
+does not switch the running development servers to controlled mode.
+
 Run the standard local Python suite:
 
 ```powershell
