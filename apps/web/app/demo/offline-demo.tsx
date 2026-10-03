@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { buildOfflineDemoReport } from "../../lib/offline-demo-report";
 
 
 type Decision = "approved" | "rejected" | null;
@@ -191,6 +192,8 @@ export function OfflineDemo() {
   const [decisionRequestKey, setDecisionRequestKey] = useState<string | null>(null);
   const [data, setData] = useState<DemoResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [exportBusy, setExportBusy] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const stages = useMemo(() => (data ? buildStages(data) : []), [data]);
   const complete = stages.length > 0 && activeStage === stages.length - 1;
@@ -240,6 +243,7 @@ export function OfflineDemo() {
   }, []);
 
   async function startDemo() {
+    setExportError(null);
     setDecisionBusy(null);
     setDecisionRequestKey(null);
     setData(null);
@@ -263,6 +267,7 @@ export function OfflineDemo() {
   }
 
   function resetDemo() {
+    setExportError(null);
     setRunning(false);
     setLoading(false);
     setActiveStage(-1);
@@ -279,6 +284,7 @@ export function OfflineDemo() {
     setDecisionRequestKey(requestKey);
     setDecisionBusy(decision);
     setError(null);
+    setExportError(null);
     try {
       const response = await fetch(
         `${apiBase}/demo/runs/${encodeURIComponent(data.run.run_id)}/decision`,
@@ -300,6 +306,30 @@ export function OfflineDemo() {
       setError(problem instanceof Error ? problem.message : "The decision could not be recorded.");
     } finally {
       setDecisionBusy(null);
+    }
+  }
+
+  async function downloadReport() {
+    if (!data || !complete || decisionBusy || exportBusy) return;
+    setExportBusy(true);
+    setExportError(null);
+    try {
+      const report = await buildOfflineDemoReport(data);
+      const url = URL.createObjectURL(new Blob([JSON.stringify(report, null, 2) + "\n"], { type: "application/json" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "forge-offline-demo-report.json";
+      document.body.appendChild(link);
+      try {
+        link.click();
+      } finally {
+        link.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+    } catch {
+      setExportError("The report could not be downloaded. Reload the demo and try again; no review decision was changed.");
+    } finally {
+      setExportBusy(false);
     }
   }
 
@@ -398,10 +428,10 @@ export function OfflineDemo() {
           ) : null}
 
           <div className="demo-actions">
-            <button type="button" onClick={startDemo} disabled={running || loading || restoring}>
+            <button type="button" onClick={startDemo} disabled={running || loading || restoring || exportBusy}>
               {loading ? "Executing locally…" : error ? "Try backend again" : data ? "Run another real demo" : "Run real offline demo"}
             </button>
-            <button type="button" className="secondary" onClick={resetDemo} disabled={loading || restoring}>
+            <button type="button" className="secondary" onClick={resetDemo} disabled={loading || restoring || exportBusy}>
               Reset
             </button>
           </div>
@@ -507,19 +537,26 @@ export function OfflineDemo() {
                   no branch, commit, pull request, publication permission, or external write.
                 </p>
                 <small>Recorded by {data.decision?.actor} · survives refresh</small>
-                <button type="button" className="secondary" onClick={startDemo}>Run a new demo</button>
+                <button type="button" className="secondary" disabled={exportBusy} onClick={startDemo}>Run a new demo</button>
               </div>
             ) : (
               <div className="demo-review-actions">
-                <button type="button" disabled={decisionBusy !== null} onClick={() => recordDecision("approved")}>
+                <button type="button" disabled={decisionBusy !== null || exportBusy} onClick={() => recordDecision("approved")}>
                   {decisionBusy === "approved" ? "Recording…" : "Approve locally"}
                 </button>
-                <button type="button" className="demo-reject" disabled={decisionBusy !== null} onClick={() => recordDecision("rejected")}>
+                <button type="button" className="demo-reject" disabled={decisionBusy !== null || exportBusy} onClick={() => recordDecision("rejected")}>
                   {decisionBusy === "rejected" ? "Recording…" : "Reject"}
                 </button>
                 <p>The backend stores one immutable decision. GitHub publishing remains disabled.</p>
               </div>
             )}
+            <div className="demo-export">
+              <button type="button" className="secondary" disabled={decisionBusy !== null || exportBusy || running || loading || restoring} onClick={downloadReport}>
+                {exportBusy ? "Preparing report…" : "Download offline evidence"}
+              </button>
+              <p>JSON report with the exact patch, checks and {decision ? "saved decision" : "no decision yet"}. Scripted demo—not live AI performance. No reviewer identity or raw events.</p>
+              {exportError ? <p role="alert">{exportError}</p> : null}
+            </div>
           </div>
         </section>
       ) : null}

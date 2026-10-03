@@ -1592,6 +1592,28 @@ button.demo-reject {
   color: #ffadb7;
 }
 
+.demo-export {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid #252c34;
+}
+
+.demo-export button {
+  margin-left: 0;
+  width: 100%;
+}
+
+.demo-export p {
+  margin: 10px 0 0;
+  color: #9ba9b8;
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+
+.demo-export p[role="alert"] {
+  color: #ffadb7;
+}
+
 @media (max-width: 640px) {
   main {
     width: min(100% - 24px, 960px);

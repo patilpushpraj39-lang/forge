@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test tests/api-client.test.ts tests/reviewer-access.test.ts tests/github-catalog.test.ts"
+    "test": "node --experimental-strip-types --test tests/api-client.test.ts tests/reviewer-access.test.ts tests/github-catalog.test.ts tests/offline-demo-report.test.ts"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.9.7",

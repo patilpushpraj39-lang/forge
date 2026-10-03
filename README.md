@@ -228,16 +228,22 @@ pnpm --filter @forge/web dev
 
 ### Free offline product demo
 
-Open `http://127.0.0.1:3000/demo` to execute a deterministic local run through
+Open `http://localhost:3000/demo` to execute a deterministic local run through
 the real Forge API, durable event store, sandbox, tool loop, patch artifact,
 and independent evaluator. It needs no API key, makes no model or external
-network calls, spends no money, and cannot write to GitHub. Its fixed retired
+runtime network calls, spends no money, and cannot write to GitHub. Browser
+requests to the local API and optional Clerk authentication are separate. Its fixed retired
 public smoke fixture demonstrates the engineering workflow only; it is not
 benchmark or model-quality evidence.
 
 The [offline verification guide](docs/operations/offline-verification.md)
 explains how to check review persistence and run the isolated HTTP restart
 tests without touching your normal demo database or requiring an API key.
+After the patch appears, **Download offline evidence** saves a JSON report of
+the exact patch, checks and any saved review decision. The browser verifies the
+patch's SHA-256 hash and omits raw events and reviewer identities. The report is
+not signed, is not a live benchmark, and grants no publishing permission. See
+the [export verification record](docs/verification/offline-demo-export.md).
 
 To check the local services from a new terminal without starting a run:
 

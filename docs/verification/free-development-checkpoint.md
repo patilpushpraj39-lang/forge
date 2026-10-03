@@ -89,6 +89,9 @@ The expanded local Python suite ran 175 tests: 163 passed and the same 12
 environment-dependent cases skipped. Scaffold and whitespace checks passed.
 The command was also run against the owner's existing development services:
 both returned expected HTTP 200 responses, with exit code 0 in text and JSON
-modes. It did not start/stop processes or submit a run. These new changes have
-not yet been reproduced in GitHub CI; the preceding CI evidence remains bound
-to `733ce1d`, not automatically to this follow-up.
+modes. It did not start/stop processes or submit a run. The owner subsequently
+supplied a success screenshot for both jobs in
+[CI #19 at `cc70223`](https://github.com/patilpushpraj39-lang/forge/actions/runs/37110950245).
+That screenshot establishes the displayed job result, not independently inspected
+per-test counts. Later offline-report work is verified separately in the
+[export record](offline-demo-export.md), not automatically by this earlier run.

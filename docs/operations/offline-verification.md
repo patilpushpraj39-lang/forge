@@ -57,6 +57,28 @@ The automated check additionally verifies persistence across API restarts,
 which refreshing the browser alone cannot prove. It does not automate browser
 rendering or establish that a deployed installation works.
 
+## Download a review report
+
+After the patch and checks appear, click **Download offline evidence**. Your
+browser saves `forge-offline-demo-report.json` to its download location. You can
+download before deciding (the report has `decision: null`) or after deciding
+(the report includes the saved approval/rejection and its exact evidence hashes).
+Downloading does not make or change a decision and sends no additional API request.
+
+The browser recomputes SHA-256 over the exact UTF-8 patch, including its trailing
+newline, before saving. A mismatch or inconsistent decision prevents export and
+shows a safe message; reload the demo rather than bypassing that check. The full
+verdict artifact is not included, so its hash is a backend reference, not an
+independently verified verdict hash in this file. Raw events, actors, retry keys
+and environment configuration are excluded through a field whitelist.
+
+The report is editable JSON, not a signed attestation. It documents this scripted
+public-fixture workflow only, not live model quality, benchmark results, security
+isolation or production readiness. Runtime external-request counts do not include
+browser traffic to the local API or optional authentication service. Keep private
+benchmark tasks and answer patches separate; this export is for the offline demo,
+not arbitrary engineering runs.
+
 ## If a check fails
 
 - An API startup failure: confirm the Python environment has the repository's
