@@ -229,3 +229,55 @@ general worker request-level spending enforcement, controlled-profile and live
 publication gates remain open. No payment settings, API keys, live Forge runs,
 repository contents or GitHub publication were changed by this rehearsal. See
 the [free rehearsal guide](../operations/readonly-ai-pilot.md#free-safeguard-rehearsal-no-card-or-api-key).
+
+## Disabled standalone README executor
+
+The owner supplied a screenshot of
+[CI #23 at `3571684`](https://github.com/patilpushpraj39-lang/forge/actions/runs/37136268389)
+showing `verify` and `sandbox-abuse` successful, followed by local rehearsal output
+showing zero provider calls/charges and duplicate-attempt blocking. These are
+user-provided CI/rehearsal results, not a live paid execution result.
+
+On 3 October 2026, the owner then authorized building a read-only executor with
+live execution disabled by default. `scripts/execute-readonly-pilot.py` adds an
+isolated operator-only function and direct HTTPS adapter. No web/API/worker or
+publisher caller, CLI enable/reset switch or environment enable setting was
+added. Running the script prints `DISABLED`; it does not open storage, read
+credentials or send a request. The actual local pilot ledger was not created.
+
+The execution path requires an explicit enable boolean, supplied project-scoped
+credential/project, exact plan fingerprint and short-lived UTC consent binding
+the source revision/project/allowance, upload/spend permission and operator
+billing/model/price/retention attestations. It uses the shared strict request and
+budget checks with the actual UTC date and revalidates consent after counting.
+It rebuilds the plan from the immutable captured snapshot via a read-only source
+database before upload. A fixed separate ledger allows one total attempt, commits
+reservation before counting and generation-start before generation, and blocks
+replay after concurrent requests, errors, interruption, incomplete output or lost
+results. Changing plan/project does not allocate another slot. Deleting/replacing
+the ledger or using another host/checkout is outside this local guard's scope.
+
+The adapter permits only verified direct HTTPS to `api.openai.com` and the count/
+generation POST endpoints. It has no SDK retries, proxy/base-URL environment
+override, redirects, tools, repository commands or publication calls. Counting
+uses the same input-shaping fields as generation, omitting generation-only fields
+not accepted by the count schema. Responses have size/JSON/usage/settings/output
+checks, safe errors and no automatic retry. Ledger records exclude credentials,
+source/response text and raw provider errors. Returned summary text is untrusted;
+usage-derived charges are conditional estimates and not a verified bill.
+
+Twenty-nine new executor tests passed using a fake HTTP connection, fake key/
+project/count/output, public fixed README and temporary source/ledger databases.
+Socket creation was blocked in those tests; neither the provider nor any live
+Forge run was used. All 64 preview/rehearsal/executor tests passed. The full local
+Python suite passed: 257 tests, 245 passed and 12 PostgreSQL/Docker environment-
+dependent skips (not passes). All 44 web tests passed, the default executor CLI
+printed `DISABLED`, and both local servers responded to the health check.
+
+This verifies disabled/local behavior and mocked transport integration, not live
+provider schema acceptance, model access, billing, token counts or AI quality.
+The general worker's spending/retry behavior, authenticated approval integration,
+funded live pilot, controlled-profile and publication gates remain open. No paid
+requests, credential access, live run updates, repository edits in the target
+repository, payment changes or GitHub publication occurred. See the
+[disabled executor guide](../operations/readonly-ai-pilot.md#standalone-read-only-executor-disabled-by-default).
