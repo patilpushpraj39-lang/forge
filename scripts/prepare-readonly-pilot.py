@@ -93,7 +93,7 @@ def plan_digest(plan: dict) -> str:
     return hashlib.sha256(canonical).hexdigest()
 
 
-def read_captured_readme(run: dict, artifacts: Path) -> bytes:
+def read_captured_readme(run: dict, artifacts: Path, *, snapshot_content: bytes | None = None) -> bytes:
     checksum = run.get("source_snapshot_sha256")
     size = run.get("source_snapshot_size_bytes")
     if not isinstance(checksum, str) or not re.fullmatch(r"[0-9a-f]{64}", checksum):
@@ -102,11 +102,16 @@ def read_captured_readme(run: dict, artifacts: Path) -> bytes:
         raise ValueError("Snapshot exceeds the 1 MiB preview limit or has invalid size.")
     if run.get("source_snapshot_media_type") != "application/vnd.forge.snapshot+tar":
         raise ValueError("A Forge source snapshot archive is required.")
-    artifact = artifacts / "sha256" / checksum[:2] / checksum
-    if artifact.is_symlink() or not artifact.resolve().is_relative_to(artifacts.resolve()):
-        raise ValueError("Snapshot must stay inside local artifact storage.")
-    with artifact.open("rb") as stream:
-        content = stream.read(MAX_ARCHIVE_BYTES + 1)
+    if snapshot_content is None:
+        artifact = artifacts / "sha256" / checksum[:2] / checksum
+        if artifact.is_symlink() or not artifact.resolve().is_relative_to(artifacts.resolve()):
+            raise ValueError("Snapshot must stay inside local artifact storage.")
+        with artifact.open("rb") as stream:
+            content = stream.read(MAX_ARCHIVE_BYTES + 1)
+    else:
+        # The API's configured artifact reader supplies bounded bytes; the same
+        # integrity and archive checks apply without creating a local workspace.
+        content = snapshot_content
     if len(content) != size or hashlib.sha256(content).hexdigest() != checksum:
         raise ValueError("Snapshot size or checksum does not match the saved run.")
     # Inspect in memory. Never extract, execute, or create a workspace.
@@ -127,7 +132,7 @@ def read_captured_readme(run: dict, artifacts: Path) -> bytes:
     return readme
 
 
-def prepare_plan(run: dict, artifacts: Path, expected_repository: str) -> dict:
+def validate_source_reference(run: dict, expected_repository: str) -> tuple[str, str, str]:
     run_id = str(UUID(run["run_id"]))
     # Reuse only the immutable input as a reference; do not reuse/claim this run.
     if run.get("state") != "COMPLETED":
@@ -146,7 +151,12 @@ def prepare_plan(run: dict, artifacts: Path, expected_repository: str) -> dict:
         raise ValueError("An immutable Git commit SHA is required.")
     if run.get("repository_path") != f"github://{repository}@{base_sha}":
         raise ValueError("Saved run must reference the captured immutable GitHub revision.")
-    readme = read_captured_readme(run, artifacts)
+    return run_id, repository, base_sha
+
+
+def prepare_plan(run: dict, artifacts: Path, expected_repository: str, *, snapshot_content: bytes | None = None) -> dict:
+    run_id, repository, base_sha = validate_source_reference(run, expected_repository)
+    readme = read_captured_readme(run, artifacts, snapshot_content=snapshot_content)
     plan = {
         "kind": "offline-preview-only",
         "source_run_id": run_id,

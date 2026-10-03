@@ -33,6 +33,7 @@ from .run_contract import (
     validate_run_budgets,
 )
 from .source_contract import SourceSnapshot
+from .readonly_review import EVENT_TYPE as READONLY_REVIEW_EVENT, existing_decision, validate_record
 
 
 class RunState(StrEnum):
@@ -388,6 +389,20 @@ class RunStore:
             event = self._append_event(
                 connection, run_id, event_type, actor, payload
             )
+            connection.commit()
+        return event
+
+    def record_readonly_preview_decision(self, run_id: str, actor: str, payload: dict[str, Any]) -> dict[str, Any]:
+        with self._connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            validate_record(dict(self._require_run(connection, run_id)), actor, payload)
+            rows = connection.execute(
+                "SELECT * FROM run_events WHERE run_id = ? AND event_type = ? ORDER BY sequence",
+                (run_id, READONLY_REVIEW_EVENT),
+            ).fetchall()
+            event = existing_decision([self._event_from_row(row) for row in rows], actor, payload)
+            if event is None:
+                event = self._append_event(connection, run_id, READONLY_REVIEW_EVENT, actor, payload)
             connection.commit()
         return event
 

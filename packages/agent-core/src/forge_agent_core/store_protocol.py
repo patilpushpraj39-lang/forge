@@ -33,6 +33,10 @@ class RunStoreProtocol(Protocol):
         payload: dict[str, Any],
     ) -> dict[str, Any]: ...
 
+    def record_readonly_preview_decision(
+        self, run_id: str, actor: str, payload: dict[str, Any],
+    ) -> dict[str, Any]: ...
+
     def transition(
         self,
         run_id: str,

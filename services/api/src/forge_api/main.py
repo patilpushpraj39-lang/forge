@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import os
 import tempfile
@@ -8,9 +9,9 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Annotated, Literal
 
-from fastapi import Depends, HTTPException, Query, Request
+from fastapi import Depends, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
 
 from forge_agent_core import (
     ApprovalError,
@@ -51,6 +52,8 @@ from .access import (
     create_api_application,
     validate_api_profile,
 )
+from .readonly_preview import build_preview, receipt
+from forge_agent_core.readonly_review import EFFECTS, SCOPE as READONLY_REVIEW_SCOPE
 
 
 api_profile = validate_api_profile()
@@ -266,6 +269,60 @@ Reviewer = Annotated[ReviewerPrincipal, Depends(require_reviewer)]
 @app.get("/auth/me")
 def current_reviewer(reviewer: Reviewer) -> dict[str, str]:
     return reviewer.to_dict()
+
+
+class ReadonlyPreviewDecisionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    scope: Literal["readonly-preview-record-only-v1"]
+    repository: str = Field(min_length=3, max_length=201, pattern=r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+    plan_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    decision: Literal["approved", "rejected"]
+    decision_key: str = Field(min_length=16, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")
+    acknowledge_record_only: StrictBool
+
+    @field_validator("acknowledge_record_only")
+    @classmethod
+    def record_only_acknowledged(cls, value: bool) -> bool:
+        if not value:
+            raise ValueError("Acknowledge record-only review; execution remains disabled.")
+        return value
+
+
+def _readonly_preview(run_id: str, repository: str) -> dict:
+    try:
+        return build_preview(store, controller, run_id, repository)
+    except RunNotFoundError as error:
+        raise HTTPException(status_code=404, detail="Source reference not found") from error
+    except Exception as error:
+        # Never return raw artifact paths, repository bytes or provider errors.
+        raise HTTPException(status_code=409, detail="Source preview unavailable or ineligible") from error
+
+
+@app.get("/readonly-previews/{run_id}")
+def get_readonly_preview(run_id: str, reviewer: Reviewer, response: Response, repository: str = Query(min_length=3, max_length=201)) -> dict:
+    del reviewer
+    response.headers["Cache-Control"] = "private, no-store"
+    return _readonly_preview(run_id, repository)
+
+
+@app.post("/readonly-previews/{run_id}/decision")
+def decide_readonly_preview(run_id: str, request: ReadonlyPreviewDecisionRequest, reviewer: Reviewer, response: Response) -> dict:
+    response.headers["Cache-Control"] = "private, no-store"
+    preview = _readonly_preview(run_id, request.repository)
+    plan = preview["plan"]
+    if request.plan_sha256 != plan["plan_sha256"]:
+        raise HTTPException(status_code=409, detail="Preview changed; reload and review again")
+    payload = {"scope": READONLY_REVIEW_SCOPE, "decision": request.decision,
+               "plan_sha256": plan["plan_sha256"], "repository": plan["repository"],
+               "base_sha": plan["base_sha"], "snapshot_sha256": plan["snapshot_sha256"],
+               "decision_key_sha256": hashlib.sha256(request.decision_key.encode("ascii")).hexdigest(), **EFFECTS}
+    try:
+        event = store.record_readonly_preview_decision(run_id, reviewer.actor_id, payload)
+    except RunNotFoundError as error:
+        raise HTTPException(status_code=404, detail="Source reference not found") from error
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail="Review conflicts with the stored source or decision") from error
+    return receipt(event)
 
 
 def _require_github_catalog() -> GitHubCatalog:

@@ -156,6 +156,41 @@ class PostgresIntegrationTests(unittest.TestCase):
             "worker", lease_owner="replacement-worker",
         )
 
+    def test_record_only_readonly_review_is_atomic_and_not_publication(self) -> None:
+        import psycopg
+        from forge_agent_core import RepositoryTarget, SourceSnapshot
+        from forge_agent_core.readonly_review import EFFECTS, EVENT_TYPE, SCOPE
+        from forge_agent_core.postgres_run_store import PostgresRunStore
+
+        created = self.store.create_run("github://octo/fixture@" + "a" * 40,
+            "Worker smoke test only: read the captured README. No AI, file changes, or pull request.",
+            repository=RepositoryTarget("octo", "fixture", 42, "main", "a" * 40),
+            source_snapshot=SourceSnapshot("b" * 64, 10240))
+        run_id = created["run_id"]
+        with psycopg.connect(self.database_url) as connection:
+            connection.execute("UPDATE runs SET state = 'COMPLETED' WHERE run_id = %s", (run_id,))
+        before = self.store.get_run(run_id)
+        payload = {"scope": SCOPE, "decision": "approved", "plan_sha256": "c" * 64,
+                   "snapshot_sha256": "b" * 64, "base_sha": "a" * 40, "repository": "octo/fixture",
+                   "decision_key_sha256": "d" * 64, **EFFECTS}
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            events = list(pool.map(lambda _: self.store.record_readonly_preview_decision(run_id, "clerk:fixture", payload), range(8)))
+        self.assertEqual(len({event["event_id"] for event in events}), 1)
+        reopened = PostgresRunStore(self.database_url, self.migrations_path)
+        try:
+            restored = [event for event in reopened.list_events(run_id) if event["event_type"] == EVENT_TYPE]
+            self.assertEqual(restored, [events[0]])
+            self.assertEqual(reopened.get_run(run_id), before)
+            with self.assertRaises(ValueError):
+                reopened.record_readonly_preview_decision(run_id, "clerk:fixture", {**payload, "decision": "rejected"})
+        finally:
+            reopened.close()
+        with psycopg.connect(self.database_url) as connection:
+            for table in ("approvals", "publication_jobs"):
+                self.assertEqual(connection.execute(f"SELECT COUNT(*) FROM {table} WHERE run_id = %s", (run_id,)).fetchone()[0], 0)
+            row = connection.execute("SELECT topic FROM outbox_messages WHERE event_id = %s", (events[0]["event_id"],)).fetchone()
+            self.assertEqual(row[0], "run.event")
+
     def test_agent_idempotency_survives_ledger_recreation(self) -> None:
         from forge_agent_core.idempotency import PostgresIdempotencyLedger
         from forge_agent_core.model_runtime import (

@@ -46,6 +46,7 @@ from .run_contract import (
     validate_run_budgets,
 )
 from .source_contract import SourceSnapshot
+from .readonly_review import EVENT_TYPE as READONLY_REVIEW_EVENT, existing_decision, validate_record
 
 
 class MigrationChecksumError(RuntimeError):
@@ -267,6 +268,18 @@ class PostgresRunStore:
             self._require_run(connection, run_id, for_update=True)
             return self._append_event(
                 connection, run_id, event_type, actor, payload
+            )
+
+    def record_readonly_preview_decision(self, run_id: str, actor: str, payload: dict[str, Any]) -> dict[str, Any]:
+        with self._connection() as connection, connection.transaction():
+            validate_record(self._require_run(connection, run_id, for_update=True), actor, payload)
+            rows = connection.execute(
+                "SELECT * FROM run_events WHERE run_id = %s AND event_type = %s ORDER BY sequence",
+                (run_id, READONLY_REVIEW_EVENT),
+            ).fetchall()
+            event = existing_decision([self._event_from_row(row) for row in rows], actor, payload)
+            return event if event is not None else self._append_event(
+                connection, run_id, READONLY_REVIEW_EVENT, actor, payload,
             )
 
     def transition(

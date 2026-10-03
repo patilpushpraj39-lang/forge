@@ -6,6 +6,24 @@
   color: #eef2f6;
 }
 
+.readonly-review pre {
+  max-height: 30rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 18px;
+  border: 1px solid #293542;
+  border-radius: 10px;
+  background: #090d11;
+  line-height: 1.55;
+}
+.readonly-safety { color: #8bd3f7; line-height: 1.6; }
+.readonly-evidence { display: grid; gap: 8px; }
+.readonly-evidence dt { color: #9ba8b6; }
+.readonly-evidence dd { margin: 0 0 12px; overflow-wrap: anywhere; }
+.readonly-review p, .readonly-review li { line-height: 1.6; }
+.readonly-review .run-form > input { margin-bottom: 24px; }
+
 * {
   box-sizing: border-box;
 }
