@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Forge: an evidence-led software-engineering workflow. Explore the verified development checkpoints and the gates still open.">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; connect-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Forge — Evidence before claims</title>
+  <style>
+    :root { color-scheme: dark; --bg:#0b1116; --panel:#111b23; --ink:#edf4f7; --muted:#a8bac6; --accent:#32bdf4; --line:#30424f; --good:#85e2b5; --warm:#f4c982; }
+    * { box-sizing:border-box; }
+    html { scroll-behavior:smooth; }
+    body { margin:0; background:var(--bg); color:var(--ink); font-family:"Segoe UI",Arial,sans-serif; line-height:1.6; }
+    a { color:var(--accent); text-underline-offset:4px; }
+    a:hover { color:var(--ink); }
+    a:focus-visible { outline:3px solid var(--accent); outline-offset:6px; border-radius:2px; }
+    .skip { position:absolute; top:12px; left:16px; transform:translateY(-180%); padding:8px 16px; background:var(--ink); color:var(--bg); z-index:2; }
+    .skip:focus { transform:none; }
+    .wrap { width:min(1120px,calc(100% - 64px)); margin:auto; }
+    header { border-bottom:1px solid var(--line); }
+    .top { min-height:88px; display:flex; align-items:center; justify-content:space-between; gap:24px; }
+    .brand { color:var(--ink); font-weight:750; font-size:25px; letter-spacing:-1px; text-decoration:none; }
+    .brand span { color:var(--accent); }
+    nav { display:flex; gap:26px; flex-wrap:wrap; font-size:14px; }
+    nav a { color:var(--muted); text-decoration:none; }
+    .hero { padding:85px 0 72px; display:grid; grid-template-columns:1.25fr 1fr; gap:52px; align-items:center; }
+    .eyebrow { color:var(--accent); text-transform:uppercase; letter-spacing:2px; font-size:12px; font-weight:700; margin:0 0 20px; }
+    h1 { font-size:clamp(40px,5.3vw,66px); line-height:1.06; font-weight:750; letter-spacing:-2.5px; margin:0 0 24px; }
+    h1 span { color:var(--accent); }
+    .intro { color:var(--muted); max-width:550px; font-size:18px; margin:0; }
+    .actions { display:flex; gap:16px; align-items:center; flex-wrap:wrap; margin-top:30px; }
+    .button { display:inline-block; padding:12px 19px; border-radius:6px; background:var(--accent); color:var(--bg); font-weight:700; text-decoration:none; }
+    .button:hover { background:var(--ink); color:var(--bg); }
+    .secondary { color:var(--ink); font-size:14px; }
+    .caption { color:var(--muted); font-size:12px; margin:20px 0 0; }
+    .proof { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:28px; box-shadow:12px 12px 0 #14242e; }
+    .proof-top { display:flex; justify-content:space-between; gap:12px; padding-bottom:18px; border-bottom:1px solid var(--line); font-size:12px; }
+    .tag { color:var(--good); font-weight:700; }
+    .steps { margin:20px 0 0; padding:0; list-style:none; counter-reset:step; }
+    .steps li { counter-increment:step; display:grid; grid-template-columns:30px 1fr; gap:12px; padding:10px 0; }
+    .steps li::before { content:"0" counter(step); color:var(--accent); font-family:Consolas,monospace; font-size:13px; padding-top:3px; }
+    .steps strong { display:block; font-size:15px; }
+    .steps small { color:var(--muted); display:block; font-size:12px; }
+    .boundary { border-top:1px solid var(--line); border-bottom:1px solid var(--line); padding:18px 0; color:var(--muted); font-size:14px; }
+    .boundary strong { color:var(--ink); }
+    section { padding:64px 0; }
+    section + section { border-top:1px solid var(--line); }
+    .section-head { display:flex; justify-content:space-between; align-items:baseline; gap:24px; margin-bottom:28px; }
+    h2 { margin:0; font-size:clamp(27px,3vw,36px); letter-spacing:-1px; line-height:1.2; }
+    .section-head p { margin:0; color:var(--muted); font-size:13px; }
+    .metrics { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; }
+    .metric { border:1px solid var(--line); border-radius:8px; padding:22px; background:var(--panel); }
+    .number { color:var(--accent); font-size:35px; font-weight:700; line-height:1.2; }
+    .metric h3 { font-size:15px; margin:12px 0 8px; }
+    .metric p { color:var(--muted); font-size:13px; margin:0; }
+    .footnote { color:var(--muted); font-size:13px; margin:20px 0 0; }
+    .case { display:grid; grid-template-columns:1fr 1fr; gap:40px; }
+    h3 { margin:0 0 12px; font-size:19px; }
+    .case p { color:var(--muted); margin:0 0 16px; }
+    .code { border:1px solid var(--line); border-radius:8px; padding:24px; background:#080d11; }
+    .code-label { text-transform:uppercase; letter-spacing:1.5px; font-size:11px; font-weight:700; color:var(--muted); margin-bottom:10px; }
+    pre { font-family:Consolas,"Courier New",monospace; white-space:pre-wrap; overflow-wrap:anywhere; font-size:14px; margin:0 0 24px; line-height:1.8; }
+    pre:last-child { margin-bottom:0; }
+    .removed { color:var(--warm); }
+    .added { color:var(--good); }
+    .bounds { display:flex; gap:10px; flex-wrap:wrap; }
+    .bounds span { font-size:12px; color:var(--muted); border:1px solid var(--line); padding:4px 10px; border-radius:4px; }
+    .gates { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+    .gate { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:28px; }
+    .gate .eyebrow { margin-bottom:14px; }
+    .open .eyebrow { color:var(--warm); }
+    .gate ul { margin:0; padding-left:20px; color:var(--muted); font-size:15px; }
+    .gate li + li { margin-top:12px; }
+    .gate strong { color:var(--ink); }
+    .sources { display:grid; grid-template-columns:1fr 1fr; gap:0 40px; }
+    .source { border-top:1px solid var(--line); padding:18px 0; }
+    .source a { font-weight:650; }
+    .source p { margin:6px 0 0; color:var(--muted); font-size:13px; }
+    footer { border-top:1px solid var(--line); padding:28px 0 38px; color:var(--muted); font-size:12px; }
+    footer .wrap { display:flex; justify-content:space-between; gap:20px; flex-wrap:wrap; }
+    @media (max-width:850px) { .hero { gap:32px; } .metrics { grid-template-columns:repeat(2,1fr); } .proof { padding:22px; } }
+    @media (max-width:680px) { .wrap { width:calc(100% - 36px); } .top { padding:18px 0; align-items:flex-start; flex-direction:column; gap:10px; } nav { gap:20px; } .hero { grid-template-columns:1fr; padding:48px 0; } h1 { letter-spacing:-1.5px; } .intro { font-size:16px; } .proof { box-shadow:6px 6px 0 #14242e; } section { padding:44px 0; } .section-head { flex-direction:column; gap:10px; } .case,.gates,.sources { grid-template-columns:1fr; gap:24px; } .metric { padding:17px; } .gate { padding:22px; } }
+    @media (max-width:360px) { .metrics { grid-template-columns:1fr; } }
+    @media (prefers-reduced-motion:reduce) { html { scroll-behavior:auto; } }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header>
+    <div class="wrap top">
+      <a class="brand" href="#main" aria-label="Forge home">forge<span>.</span></a>
+      <nav aria-label="Main navigation">
+        <a href="#evidence">Evidence</a><a href="#workflow">Workflow</a><a href="#limits">Open gates</a>
+        <a href="https://github.com/patilpushpraj39-lang/forge">GitHub ↗</a>
+      </nav>
+    </div>
+  </header>
+  <main id="main" class="wrap">
+    <div class="hero">
+      <div>
+        <p class="eyebrow">Forge / Development showcase</p>
+        <h1>Engineering workflows.<br><span>Evidence before claims.</span></h1>
+        <p class="intro">A software-engineering platform built around immutable source, bounded work, independent checks and human review. Here’s what the development checkpoints demonstrate—and what they don’t.</p>
+        <div class="actions">
+          <a class="button" href="#evidence">Explore the evidence</a>
+          <a class="secondary" href="https://github.com/patilpushpraj39-lang/forge">View the source ↗</a>
+        </div>
+        <p class="caption">Static showcase · No backend connection · No AI requests</p>
+      </div>
+      <aside class="proof" aria-label="Known-patch fixture checkpoint summary">
+        <div class="proof-top"><span>KNOWN-PATCH FIXTURE</span><span class="tag">CHECK PASSED</span></div>
+        <ol class="steps">
+          <li><div><strong>Reproduce the regression</strong><small>Expected failure in a public fixture.</small></div></li>
+          <li><div><strong>Apply the known patch</strong><small>Predetermined change—not generated by AI.</small></div></li>
+          <li><div><strong>Verify in a fresh workspace</strong><small>3 public tests + 4 independent checks per run.</small></div></li>
+          <li><div><strong>Exercise review records</strong><small>Scripted approve/reject, replay and conflict checks.</small></div></li>
+          <li><div><strong>Clean up temporary work</strong><small>4 workspaces destroyed; source unchanged.</small></div></li>
+        </ol>
+      </aside>
+    </div>
+    <div class="boundary"><strong>A development checkpoint, not a live autonomous service.</strong> Paid AI is disabled at this checkpoint. This page cannot run tasks, record approvals or publish patches.</div>
+    <section id="evidence" aria-labelledby="evidence-heading">
+      <div class="section-head"><h2 id="evidence-heading">Evidence with boundaries.</h2><p>Recorded checkpoint · 4 October 2026</p></div>
+      <div class="metrics">
+        <article class="metric"><div class="number">3 + 4</div><h3>Workflow checks</h3><p>Public tests plus independent checks per fixture run. A known patch, not AI-quality proof.</p></article>
+        <article class="metric"><div class="number">283</div><h3>Python tests passed</h3><p>296 discovered locally. 13 PostgreSQL/Docker checks skipped—not passed.</p></article>
+        <article class="metric"><div class="number">50</div><h3>Web tests passed</h3><p>Local checkpoint suite. Not a deployed browser or authentication certification.</p></article>
+        <article class="metric"><div class="number">CI #28</div><h3>Both jobs successful</h3><p>Owner-supplied summary for commit 6a636ef: verify and sandbox-abuse.</p></article>
+      </div>
+      <p class="footnote">These are checkpoint results, not current live counters. Detailed CI logs were not independently inspected in the evidence consolidation.</p>
+    </section>
+    <section id="workflow" aria-labelledby="workflow-heading">
+      <div class="section-head"><h2 id="workflow-heading">A small fix. A full evidence trail.</h2><p>Public status-normalizer fixture</p></div>
+      <div class="case">
+        <div>
+          <h3>Test the workflow before claiming intelligence.</h3>
+          <p>The fixture starts with a status function that returns its input unchanged. A predetermined one-line patch strips surrounding whitespace and converts the value to lowercase.</p>
+          <p>The check first reproduces the regression, then tests the repaired code. Independent checks run in a different workspace. Temporary approved and rejected records both restore; duplicate events and conflicting choices are blocked.</p>
+          <div class="bounds"><span>0 provider calls</span><span>0 AI charges</span><span>0 GitHub writes</span></div>
+          <p class="footnote">Zero counts apply to this fixture check only. Scripted decisions are not human patch approvals. Local temporary workspaces are not host security sandboxes.</p>
+        </div>
+        <div class="code" aria-label="Known change to normalize_status">
+          <div class="code-label">Before / expected regression</div>
+          <pre><code>def normalize_status(value: str) -&gt; str:
+<span class="removed">    return value</span></code></pre>
+          <div class="code-label">After / predetermined patch</div>
+          <pre><code>def normalize_status(value: str) -&gt; str:
+<span class="added">    return value.strip().lower()</span></code></pre>
+        </div>
+      </div>
+    </section>
+    <section id="limits" aria-labelledby="limits-heading">
+      <div class="section-head"><h2 id="limits-heading">Built so far. Still to prove.</h2><p>Clear limits are part of the product.</p></div>
+      <div class="gates">
+        <article class="gate"><p class="eyebrow">Demonstrated / development scope</p><h3>Foundations with recorded evidence</h3>
+          <ul>
+            <li><strong>Immutable source capture:</strong> a local disposable-repository pilot records exact commit and snapshot metadata.</li>
+            <li><strong>Saved-source worker:</strong> a captured README-only run completed; no evaluated AI change in that run.</li>
+            <li><strong>Record-only review:</strong> local screenshots show the original receipt restored after sign-in. No execution authority.</li>
+            <li><strong>Access safeguards:</strong> 30 isolated policy checks passed without skips. Fixture sessions, not deployed access proof.</li>
+          </ul>
+        </article>
+        <article class="gate open"><p class="eyebrow">Open / separate validation needed</p><h3>Not a launch claim</h3>
+          <ul>
+            <li><strong>Live AI quality and billing:</strong> real-model outcomes, fresh pricing, exact counts and separate upload/spending consent.</li>
+            <li><strong>Controlled hosting:</strong> HTTPS, real sessions, PostgreSQL, Docker and durable artifacts verified together.</li>
+            <li><strong>Live access and tenant boundaries:</strong> expiry, account switching and per-user isolation if offered.</li>
+            <li><strong>Live patch publication:</strong> exact human approval, GitHub writes and ambiguous-result recovery. No automatic merge.</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+    <section id="sources" aria-labelledby="sources-heading">
+      <div class="section-head"><h2 id="sources-heading">Follow the evidence.</h2><p>Public links · Open only when you click</p></div>
+      <div class="sources">
+        <div class="source"><a href="https://github.com/patilpushpraj39-lang/forge">Source repository ↗</a><p>Architecture, implementation and project history.</p></div>
+        <div class="source"><a href="https://github.com/patilpushpraj39-lang/forge/blob/main/docs/verification/project-readiness.md">Readiness checklist ↗</a><p>What is demonstrated and which gates remain open.</p></div>
+        <div class="source"><a href="https://github.com/patilpushpraj39-lang/forge/blob/6a636ef/docs/verification/code-workflow-checkpoint.md">Known-patch checkpoint ↗</a><p>Pinned record of fixture scope and local test results.</p></div>
+        <div class="source"><a href="https://github.com/patilpushpraj39-lang/forge/actions/runs/37154522551">CI run #28 ↗</a><p>Historical automated-check summary for commit 6a636ef.</p></div>
+      </div>
+    </section>
+  </main>
+  <footer><div class="wrap"><span>Forge · Static project showcase · Evidence dated 4 October 2026</span><span>No sign-in, analytics, forms or execution controls.</span></div></footer>
+</body>
+</html>
