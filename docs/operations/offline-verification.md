@@ -8,6 +8,11 @@ API publicly.
 
 ## Automated restart and integrity check
 
+For a temporary code-and-test run that prints baseline failure, repaired tests,
+the exact diff and both scripted record-only decision paths, use the
+[known-patch code workflow checkpoint](code-workflow-checkpoint.md). It leaves
+the normal demo database and any saved GitHub source receipt untouched.
+
 From the Forge repository in PowerShell, run:
 
 ```powershell

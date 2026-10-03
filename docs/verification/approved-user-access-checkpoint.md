@@ -48,14 +48,18 @@ Local verification on 2026-10-04: all 30 isolated access checks passed with no
 skips. The full Python suite discovered 286 tests: 273 passed and 13
 PostgreSQL/Docker infrastructure checks skipped (not passes). All 50 web tests,
 scaffold validation and whitespace checks passed. The running website's build
-output and existing generated `next-env.d.ts` change were left untouched. CI
-reproduction of this new checkpoint and the manual browser checks remain pending.
+output and existing generated `next-env.d.ts` change were left untouched. The
+owner subsequently supplied a successful CI #27 screenshot at `2cc119f`; the
+manual browser follow-up and its limits are recorded below.
 
 ## Remaining manual/infrastructure evidence
 
 - Follow the [manual sign-out/restore checklist](../operations/approved-user-access-checkpoint.md).
-  Evidence clearing while signed out and receipt restore after sign-in are not
-  yet observed for this checkpoint.
+  Owner-provided follow-up screenshots showed the signed-out read-only review
+  restriction and then the original receipt/timestamp restored after sign-in.
+  The screenshot showed the signed-out page's upper portion, not every page area;
+  clearing during an in-flight request and the complete lower-page state were
+  not independently inspected. This is local development browser evidence only.
 - A real unapproved account, real session expiry and account switching remain
   unverified; local fixture subjects are not live Clerk accounts.
 - Real controlled-profile HTTPS, Clerk, PostgreSQL, Docker, persistent artifacts,

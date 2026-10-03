@@ -51,6 +51,7 @@ jobs:
       - run: node scripts/validate-scaffold.mjs
       - run: python scripts/run-python-tests.py
       - run: python scripts/check-controlled-access.py
+      - run: python scripts/check-code-workflow.py
       - run: pnpm web:test
       - run: pnpm web:typecheck
       - run: pnpm web:build
