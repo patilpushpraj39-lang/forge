@@ -176,6 +176,8 @@ class PostgresIntegrationTests(unittest.TestCase):
         with ThreadPoolExecutor(max_workers=4) as pool:
             events = list(pool.map(lambda _: self.store.record_readonly_preview_decision(run_id, "clerk:fixture", payload), range(8)))
         self.assertEqual(len({event["event_id"] for event in events}), 1)
+        self.assertEqual(events[0]["actor"], "user")
+        self.assertEqual(events[0]["payload"], {**payload, "actor_id": "clerk:fixture"})
         reopened = PostgresRunStore(self.database_url, self.migrations_path)
         try:
             restored = [event for event in reopened.list_events(run_id) if event["event_type"] == EVENT_TYPE]

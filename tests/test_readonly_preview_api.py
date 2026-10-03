@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import json
 import sqlite3
 import tarfile
 import tempfile
@@ -125,6 +126,8 @@ class ReadonlyPreviewApiTests(unittest.TestCase):
                 self.assertEqual(connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0], 0)
         event = [e for e in self.store.list_events(self.run_id) if e["event_type"] == EVENT_TYPE]
         self.assertEqual(len(event), 1)
+        self.assertEqual(event[0]["actor"], "user")
+        self.assertEqual(event[0]["payload"]["actor_id"], "clerk:fixture")
         self.assertNotIn(self.readme.decode(), str(event))
         self.assertNotIn(body["decision_key"], str(event))
 
@@ -144,7 +147,7 @@ class ReadonlyPreviewApiTests(unittest.TestCase):
     def test_invalid_consent_schema_cannot_smuggle_paid_authority(self):
         body = self.body()
         for changes in ({"scope": "readonly-readme-openai-v1"}, {"allow_one_paid_generation": True},
-                        {"allow_source_upload": True}, {"actor": "clerk:spoof"},
+                        {"allow_source_upload": True}, {"actor": "clerk:spoof"}, {"actor_id": "clerk:spoof"},
                         {"acknowledge_record_only": False}, {"acknowledge_record_only": 1},
                         {"acknowledge_record_only": "true"}, {"decision": "execute"}):
             response = self.client.post(self.path + "/decision", json={**body, **changes}, headers=self.headers)
@@ -171,11 +174,32 @@ class ReadonlyPreviewApiTests(unittest.TestCase):
         with ThreadPoolExecutor(max_workers=6) as pool:
             receipts = list(pool.map(lambda _: self.store.record_readonly_preview_decision(self.run_id, "clerk:fixture", payload), range(12)))
         self.assertEqual(len({receipt["event_id"] for receipt in receipts}), 1)
+        self.assertEqual(receipts[0]["actor"], "user")
+        self.assertEqual(receipts[0]["payload"], {**payload, "actor_id": "clerk:fixture"})
         for actor, changes in (("clerk:other", {}), ("clerk:fixture", {"decision": "rejected"}),
                                ("clerk:fixture", {"execution_enabled": True})):
             with self.assertRaises(ValueError):
                 self.store.record_readonly_preview_decision(self.run_id, actor, {**payload, **changes})
         self.assertEqual(len([e for e in self.store.list_events(self.run_id) if e["event_type"] == EVENT_TYPE]), 1)
+
+    def test_legacy_sqlite_receipt_restores_and_replays_without_rewriting(self):
+        body = self.body()
+        self.assertEqual(self.client.post(self.path + "/decision", json=body, headers=self.headers).status_code, 200)
+        event = [e for e in self.store.list_events(self.run_id) if e["event_type"] == EVENT_TYPE][0]
+        # Fixture only: recreate the immutable record shape written before the fix.
+        legacy_payload = {k: v for k, v in event["payload"].items() if k != "actor_id"}
+        with closing(sqlite3.connect(self.database)) as connection, connection:
+            connection.execute("UPDATE run_events SET actor = ?, payload_json = ? WHERE event_id = ?",
+                               ("clerk:fixture", json.dumps(legacy_payload), event["event_id"]))
+        before = self.store.list_events(self.run_id)
+        with patch.object(api, "store", RunStore(self.database)):
+            restored = self.preview()["decision"]
+        self.assertEqual(restored["actor"], "clerk:fixture")
+        self.assertEqual(restored["event_id"], event["event_id"])
+        self.assertEqual(self.client.post(self.path + "/decision", json=body, headers=self.headers).json(), restored)
+        with patch.object(self.auth, "authenticate", return_value=ReviewerPrincipal("clerk:other", "other", "clerk")):
+            self.assertEqual(self.client.post(self.path + "/decision", json=body, headers=self.headers).status_code, 409)
+        self.assertEqual(self.store.list_events(self.run_id), before)
 
     def test_source_change_at_transaction_boundary_prevents_record(self):
         body = self.body()

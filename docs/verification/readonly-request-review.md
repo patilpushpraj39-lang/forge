@@ -20,6 +20,12 @@ source run state and run row remain unchanged; no patch approval or publication
 job is created. PostgreSQL uses the existing run-event audit outbox only, not a
 publication command.
 
+The audit event uses the existing `user` actor category; its `actor_id` payload
+field is derived inside the store from the authenticated reviewer, not supplied
+by the browser. Receipts display that verified identity. Historical SQLite
+receipts that stored the Clerk identity in the actor field remain readable and
+idempotently replayable without rewriting or duplicating the audit record.
+
 SQLite uses `BEGIN IMMEDIATE`; PostgreSQL locks the source run row. Identical
 replays by the same reviewer return the original receipt. A changed decision,
 reviewer, or submission key for an already-decided fingerprint is rejected.
@@ -68,3 +74,17 @@ The signed-in form was observed in the browser. Real-source preview/decision
 verification awaits the user restarting the existing backend; no real-user
 approval was recorded during development. PostgreSQL concurrency coverage is
 included for CI but was not executed locally without a dedicated test database.
+
+CI run #25 for `0eb8938` exposed a PostgreSQL-only actor constraint failure in
+the record-only concurrency test. The correction keeps the existing schema
+constraint and separates actor category from identity, matching patch-approval
+audit conventions. A database-free regression exercises the PostgreSQL store's
+real event-insertion code against the migration's allowed actor values; the
+integration test also asserts the stored category and identity. Neither fixture
+coverage nor SQLite testing substitutes for rerunning CI's real PostgreSQL test.
+
+Correction verification on 2026-10-04: 271 Python tests discovered, 258 passed
+and 13 infrastructure-dependent checks skipped; all 50 web tests and scaffold
+validation passed. The focused read-only suite passed all 77 tests, including
+legacy receipt restoration, replay and identity-conflict checks. Real
+PostgreSQL verification remains pending the next CI run.

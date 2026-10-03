@@ -279,7 +279,7 @@ class PostgresRunStore:
             ).fetchall()
             event = existing_decision([self._event_from_row(row) for row in rows], actor, payload)
             return event if event is not None else self._append_event(
-                connection, run_id, READONLY_REVIEW_EVENT, actor, payload,
+                connection, run_id, READONLY_REVIEW_EVENT, "user", {**payload, "actor_id": actor},
             )
 
     def transition(

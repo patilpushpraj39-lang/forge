@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 from uuid import UUID
 
-from forge_agent_core.readonly_review import EFFECTS, EVENT_TYPE, SCOPE
+from forge_agent_core.readonly_review import EFFECTS, EVENT_TYPE, SCOPE, reviewer_identity
 from forge_sandbox_controller import ArtifactRef
 
 
@@ -50,5 +50,5 @@ def build_preview(store, controller, run_id: str, repository: str) -> dict:
 def receipt(event: dict) -> dict:
     payload = event["payload"]
     return {"scope": SCOPE, "decision": payload["decision"],
-            "plan_sha256": payload["plan_sha256"], "actor": event["actor"],
+            "plan_sha256": payload["plan_sha256"], "actor": reviewer_identity(event),
             "created_at": event["occurred_at"], "event_id": event["event_id"], **EFFECTS}

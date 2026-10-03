@@ -402,7 +402,9 @@ class RunStore:
             ).fetchall()
             event = existing_decision([self._event_from_row(row) for row in rows], actor, payload)
             if event is None:
-                event = self._append_event(connection, run_id, READONLY_REVIEW_EVENT, actor, payload)
+                event = self._append_event(
+                    connection, run_id, READONLY_REVIEW_EVENT, "user", {**payload, "actor_id": actor},
+                )
             connection.commit()
         return event
 

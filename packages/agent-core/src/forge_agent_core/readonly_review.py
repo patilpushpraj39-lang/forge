@@ -20,7 +20,8 @@ def validate_record(run: dict, actor: str, payload: dict) -> None:
                 "repository", "decision_key_sha256", *EFFECTS}
     if set(payload) != expected or payload["scope"] != SCOPE:
         raise ValueError("Invalid record-only review scope.")
-    if payload["decision"] not in ("approved", "rejected") or not actor.startswith("clerk:"):
+    if (payload["decision"] not in ("approved", "rejected")
+            or not isinstance(actor, str) or not actor.startswith("clerk:") or len(actor) <= 6):
         raise ValueError("A verified reviewer and review decision are required.")
     if any(payload[key] is not False for key in EFFECTS):
         raise ValueError("Record-only review cannot authorize execution.")
@@ -39,7 +40,26 @@ def existing_decision(events: list[dict[str, Any]], actor: str, payload: dict) -
     for event in events:
         old = event["payload"]
         if old.get("plan_sha256") == payload["plan_sha256"]:
-            if event["actor"] == actor and old == payload:
+            expected = {**payload, "actor_id": actor} if "actor_id" in old else payload
+            if reviewer_identity(event) == actor and old == expected:
                 return event
             raise ValueError("This exact preview already has a review decision.")
     return None
+
+
+def reviewer_identity(event: dict) -> str:
+    """Read the verified identity, including pre-fix SQLite audit receipts."""
+    payload = event["payload"]
+    if event["event_type"] != EVENT_TYPE or payload.get("scope") != SCOPE:
+        raise ValueError("Invalid record-only review event.")
+    if "actor_id" in payload:
+        actor = payload["actor_id"]
+        if event["actor"] != "user":
+            raise ValueError("Invalid review actor category.")
+    else:
+        # Historical SQLite receipts used the identity as the event actor.
+        # Preserve those immutable entries without rewriting the audit trail.
+        actor = event["actor"]
+    if not isinstance(actor, str) or not actor.startswith("clerk:") or len(actor) <= 6:
+        raise ValueError("Verified reviewer identity required.")
+    return actor
