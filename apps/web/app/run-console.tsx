@@ -3,6 +3,9 @@
 import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 import { useApiClient, webApiMode } from "./api-session";
 import type { ApiAuthentication } from "../lib/api-client";
+import { checkReviewerAccess, reviewerAccessError, reviewerAccessStatus } from "../lib/reviewer-access";
+import type { ReviewerIdentity } from "../lib/reviewer-access";
+import { githubCatalogError } from "../lib/github-catalog";
 
 type Run = {
   run_id: string;
@@ -79,12 +82,6 @@ type GitHubRepository = {
   private: boolean;
 };
 
-type ReviewerIdentity = {
-  actor_id: string;
-  subject: string;
-  provider: string;
-};
-
 export type RunConsoleAuthentication = ApiAuthentication;
 const terminalStates = new Set(["COMPLETED", "FAILED", "CANCELLED"]);
 
@@ -120,7 +117,10 @@ export function RunConsole({
   const [installationId, setInstallationId] = useState("");
   const [repositoryName, setRepositoryName] = useState("");
   const [baseRef, setBaseRef] = useState("main");
-  const [catalogBusy, setCatalogBusy] = useState(false);
+  const [installationsBusy, setInstallationsBusy] = useState(false);
+  const [repositoriesBusy, setRepositoriesBusy] = useState(false);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const catalogBusy = publishToGitHub && (installationsBusy || repositoriesBusy);
   const [run, setRun] = useState<Run | null>(null);
   const [events, setEvents] = useState<RunEvent[]>([]);
   const [review, setReview] = useState<Review | null>(null);
@@ -138,6 +138,7 @@ export function RunConsole({
   const [error, setError] = useState<string | null>(null);
   const [streamError, setStreamError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const reviewerStatus = reviewerAccessStatus(authentication, reviewerIdentity, authError);
 
   const runId = run?.run_id;
   const repositoryBrief = events.find(
@@ -178,14 +179,20 @@ export function RunConsole({
   }, [api]);
 
   useEffect(() => {
-    if (!publishToGitHub || installations.length > 0) return;
+    if (!publishToGitHub || installations.length > 0) {
+      setInstallationsBusy(false);
+      if (!publishToGitHub) setCatalogError(null);
+      return;
+    }
     if (!api.ready || authentication.status !== "signed-in" || !authentication.getAccessToken) {
+      setInstallationsBusy(false);
       return;
     }
     let cancelled = false;
-    setError(null);
-    setCatalogBusy(true);
-    api.request("/github/installations", {}, true)
+    const controller = new AbortController();
+    setCatalogError(null);
+    setInstallationsBusy(true);
+    api.request("/github/installations", { signal: controller.signal }, true)
       .then((response) => responseJson<GitHubInstallation[]>(response))
       .then((items) => {
         if (cancelled) return;
@@ -194,14 +201,15 @@ export function RunConsole({
       })
       .catch((caught: unknown) => {
         if (!cancelled) {
-          setError(caught instanceof Error ? caught.message : "Unable to load GitHub installations");
+          setCatalogError(githubCatalogError(caught));
         }
       })
       .finally(() => {
-        if (!cancelled) setCatalogBusy(false);
+        if (!cancelled) setInstallationsBusy(false);
       });
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [
     api,
@@ -213,17 +221,22 @@ export function RunConsole({
 
   useEffect(() => {
     if (!publishToGitHub || !installationId) {
+      setRepositoriesBusy(false);
       setRepositories([]);
       setRepositoryName("");
       return;
     }
     if (!api.ready || authentication.status !== "signed-in" || !authentication.getAccessToken) {
+      setRepositoriesBusy(false);
       return;
     }
     let cancelled = false;
-    setError(null);
-    setCatalogBusy(true);
-    api.request(`/github/installations/${encodeURIComponent(installationId)}/repositories`, {}, true)
+    const controller = new AbortController();
+    setCatalogError(null);
+    setRepositories([]);
+    setRepositoryName("");
+    setRepositoriesBusy(true);
+    api.request(`/github/installations/${encodeURIComponent(installationId)}/repositories`, { signal: controller.signal }, true)
       .then((response) => responseJson<GitHubRepository[]>(response))
       .then((items) => {
         if (cancelled) return;
@@ -234,14 +247,15 @@ export function RunConsole({
       })
       .catch((caught: unknown) => {
         if (!cancelled) {
-          setError(caught instanceof Error ? caught.message : "Unable to load GitHub repositories");
+          setCatalogError(githubCatalogError(caught));
         }
       })
       .finally(() => {
-        if (!cancelled) setCatalogBusy(false);
+        if (!cancelled) setRepositoriesBusy(false);
       });
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [
     api,
@@ -309,8 +323,10 @@ export function RunConsole({
       return;
     }
     let cancelled = false;
-    api.request("/auth/me", {}, true)
-      .then((response) => responseJson<ReviewerIdentity>(response))
+    const controller = new AbortController();
+    setReviewerIdentity(null);
+    setAuthError(null);
+    checkReviewerAccess(api.request, controller.signal)
       .then((identity) => {
         if (!cancelled) {
           setReviewerIdentity(identity);
@@ -320,13 +336,12 @@ export function RunConsole({
       .catch((caught: unknown) => {
         if (!cancelled) {
           setReviewerIdentity(null);
-          setAuthError(
-            caught instanceof Error ? caught.message : "Unable to authorize reviewer"
-          );
+          setAuthError(reviewerAccessError(caught));
         }
       });
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [api, authentication.status, authentication.getAccessToken]);
 
@@ -451,14 +466,8 @@ export function RunConsole({
       <div className="console-auth">
         <div>
           <span className="label">Reviewer access</span>
-          <p>
-            {reviewerIdentity?.actor_id ??
-              (authentication.status === "unconfigured"
-                ? "Clerk is not configured"
-                : authentication.status === "signed-out"
-                  ? "Sign in to access GitHub repositories and approve patches"
-                  : "Checking reviewer authorization…")}
-          </p>
+          <p className={reviewerStatus.failed ? "error compact-error" : undefined}
+            role={reviewerStatus.failed ? "alert" : "status"}>{reviewerStatus.message}</p>
         </div>
         {authControl}
       </div>
@@ -497,7 +506,10 @@ export function RunConsole({
             type="checkbox"
             checked={publishToGitHub}
             disabled={webApiMode === "controlled"}
-            onChange={(event) => setPublishToGitHub(event.target.checked)}
+            onChange={(event) => {
+              setPublishToGitHub(event.target.checked);
+              setCatalogError(null);
+            }}
           />
           <span>
             <strong>Use an installed GitHub repository</strong>
@@ -549,15 +561,18 @@ export function RunConsole({
               Base branch
               <input value={baseRef} onChange={(event) => setBaseRef(event.target.value)} required />
             </label>
-            <p className="catalog-note">
+            <p className={catalogError ? "catalog-note error compact-error" : "catalog-note"}
+              role={catalogError ? "alert" : "status"}>
               {authentication.status === "unconfigured"
                 ? "Configure Clerk before connecting an installed GitHub repository."
                 : authentication.status !== "signed-in"
                   ? "Sign in as an authorized reviewer to load GitHub installations."
                   : !reviewerIdentity
-                    ? "Checking whether this account is an authorized reviewer."
+                    ? reviewerStatus.message
                     : catalogBusy
                 ? "Loading authorized GitHub targets…"
+                : catalogError
+                  ? catalogError
                 : installations.length === 0
                   ? "No active GitHub App installation is available."
                   : repositories.length === 0
@@ -569,7 +584,7 @@ export function RunConsole({
         <div className="form-actions">
           <p>Hard limits protect cost, time, tool use, and patch attempts.</p>
           <button
-            disabled={!api.ready || busy === "create" || catalogBusy || (publishToGitHub && !reviewerIdentity)}
+            disabled={!api.ready || busy === "create" || catalogBusy || (publishToGitHub && (!reviewerIdentity || !selectedRepository || Boolean(catalogError)))}
             type="submit"
           >
             {busy === "create" ? "Capturing source…" : "Create bounded run"}
@@ -667,16 +682,10 @@ export function RunConsole({
                 <div>
                   <span className="label">Reviewer session</span>
                   <strong>
-                    {reviewerIdentity?.actor_id ??
-                      (authentication.status === "unconfigured"
-                        ? "Authentication not configured"
-                        : authentication.status === "signed-out"
-                          ? "Sign in required"
-                          : "Checking authorization…")}
+                    {reviewerStatus.message}
                   </strong>
                 </div>
               </div>
-              {authError ? <p className="error compact-error">{authError}</p> : null}
               <label className="toggle-row confirmation">
                 <input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} />
                 <span>I reviewed the diff and checks. Approve only this patch hash, verdict, repository, and base commit for 15 minutes.</span>

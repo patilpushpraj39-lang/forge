@@ -85,8 +85,10 @@ before any write, creates a deterministic branch and commit, and recovers an
 existing pull request after ambiguous retries. Local contract tests prove stale
 approvals cannot publish and retries create at most one pull request. Reviewer
 identity now comes from a verified Clerk session and an explicit server-side
-allowlist; the browser cannot choose the approval actor. Live Clerk and GitHub
-proofs plus public PostgreSQL CI evidence remain before the milestone is
+allowlist; the browser cannot choose the approval actor. Local Clerk development
+sign-in and user-reported sign-out/sign-in checks now have recorded evidence;
+controlled-profile approval, live GitHub proofs and public PostgreSQL CI
+evidence remain before the milestone is
 complete. See the
 [approval and publishing architecture](docs/architecture/approval-publishing.md)
 and [Milestone 6 progress record](docs/verification/milestone-6-progress.md).
@@ -128,6 +130,11 @@ sessions consistently and uses authenticated, cursor-replaying fetch streams;
 session rejection/sign-out clears its in-memory evidence. The trusted offline
 demo remains unchanged. See the [controlled API guide](docs/operations/controlled-api.md)
 and [authenticated web verification](docs/verification/authenticated-web.md).
+
+The [3 October free development checkpoint](docs/verification/free-development-checkpoint.md)
+records 156 passing local Python tests (12 environment-dependent skips), 30
+passing web tests, and an isolated production build/standalone serving check.
+These checks do not constitute deployment or live model-quality evidence.
 
 ## Product boundary
 

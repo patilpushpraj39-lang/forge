@@ -44,10 +44,14 @@ configuration is absent. Skips are not passes.
 ## Optional browser check
 
 1. Keep the normal API and web development servers running.
-2. Open `http://127.0.0.1:3000/demo` and click **Run real offline demo**.
+2. Open `http://localhost:3000/demo` and click **Run real offline demo**.
 3. Confirm that the patch and four independent checks appear.
 4. Click **Approve locally** or **Reject**.
 5. Refresh the page and confirm the same decision is restored.
+
+When Clerk is configured, start the web server with `--hostname localhost` and
+use `localhost` consistently in the browser. Do not mix that browser origin
+with a web server bound to `127.0.0.1` during the Clerk handshake.
 
 The automated check additionally verifies persistence across API restarts,
 which refreshing the browser alone cannot prove. It does not automate browser

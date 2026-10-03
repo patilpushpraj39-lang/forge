@@ -49,3 +49,13 @@ are not counted as milestone completion evidence.
 - Public CI execution of the PostgreSQL approval/publication migration.
 - Controlled live GitHub App proof of catalog discovery, immutable ingestion,
   one pull-request creation, and ambiguous-retry recovery without duplication.
+
+## Development authentication follow-up
+
+On 2-3 October 2026, local Clerk development sign-in displayed the verified
+reviewer actor in a user-provided screenshot. The user subsequently reported
+completing the sign-out/refresh/sign-in check, and an anonymous local request
+to `/auth/me` returned 401. These checks do not close the controlled-profile
+approval or GitHub publishing gates above. See the
+[authenticated web verification record](authenticated-web.md) for provenance,
+scope and remaining live checks. No paid model calls or GitHub writes were made.
