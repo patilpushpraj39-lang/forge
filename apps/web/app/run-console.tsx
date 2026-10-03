@@ -6,6 +6,7 @@ import type { ApiAuthentication } from "../lib/api-client";
 import { checkReviewerAccess, reviewerAccessError, reviewerAccessStatus } from "../lib/reviewer-access";
 import type { ReviewerIdentity } from "../lib/reviewer-access";
 import { githubCatalogError } from "../lib/github-catalog";
+import { shouldLoadRunReview } from "../lib/run-review";
 
 type Run = {
   run_id: string;
@@ -17,6 +18,8 @@ type Run = {
   base_sha: string | null;
   objective: string;
   state: string;
+  evaluated_patch_hash?: string | null;
+  evaluation_verdict_hash?: string | null;
 };
 
 type RunEvent = {
@@ -141,6 +144,7 @@ export function RunConsole({
   const reviewerStatus = reviewerAccessStatus(authentication, reviewerIdentity, authError);
 
   const runId = run?.run_id;
+  const needsReview = shouldLoadRunReview(run, events);
   const repositoryBrief = events.find(
     (event) => event.event_type === "repository_indexed"
   )?.payload.brief as RepositoryBrief | undefined;
@@ -301,9 +305,9 @@ export function RunConsole({
   useEffect(() => {
     if (
       !api.ready || !runId ||
-      !run ||
-      !["AWAITING_APPROVAL", "PUBLISHING", "COMPLETED"].includes(run.state)
+      !needsReview
     ) {
+      setReview(null);
       return;
     }
     const controller = new AbortController();
@@ -314,7 +318,7 @@ export function RunConsole({
         if (!controller.signal.aborted) setError(caught instanceof Error ? caught.message : "Unable to load review evidence");
       });
     return () => controller.abort();
-  }, [api, runId, run?.state]);
+  }, [api, runId, run?.state, needsReview]);
 
   useEffect(() => {
     if (!api.ready || authentication.status !== "signed-in" || !authentication.getAccessToken) {
@@ -617,6 +621,10 @@ export function RunConsole({
             </button>
           ) : null}
         </section>
+      ) : null}
+
+      {run?.state === "COMPLETED" && !needsReview ? (
+        <p className="muted" role="status">Completed without a patch. No patch review or publication is expected.</p>
       ) : null}
 
       {repositoryBrief ? (

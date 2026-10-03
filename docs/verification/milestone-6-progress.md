@@ -97,6 +97,58 @@ These are user-supplied local development screenshots, not independently
 inspected controlled-profile or multi-user proof. Controlled authentication,
 human-approved live publishing and retry-recovery evidence remain outstanding.
 
+## Targeted no-model worker check preparation
+
+On 3 October 2026, a local-only helper was added for an explicitly selected fresh
+GitHub-source run with a fixed README smoke-test objective. It validates the
+expected repository and immutable source metadata before claiming that run,
+restores the stored snapshot using artifact integrity checks, and executes only
+an isolated Python README byte-count/hash command. It strips inherited
+credentials and does not instantiate a model runtime or publisher. It refuses
+cancelled or already-started runs and unsupported storage/profile settings.
+See the [local worker smoke-check guide](../operations/github-worker-smoke.md).
+
+Eleven new fixture-based tests passed, including preservation of an unrelated
+queued run, immutable input use, missing/corrupt source failures, credential
+removal/restoration, and CLI behavior. The full local Python suite ran 193 tests:
+181 passed and 12 PostgreSQL/Docker environment-dependent cases skipped. These
+skips are not passes. No actual pilot run was claimed or executed during this
+preparation, and no paid inference or GitHub changes were made. Live worker
+smoke-check evidence remains pending a new disposable run; this preparation
+does not close controlled authentication, AI-quality or publication gates.
+
+## Completed local worker smoke check
+
+Later on 3 October 2026, the owner created a fresh disposable GitHub-source run
+with the helper's exact task and executed the one-run check. The saved local API
+run and audit trail were independently read afterward. They showed
+`CREATED -> SNAPSHOTTING -> EXECUTING -> COMPLETED`, `snapshot_ready`, one
+Markdown file indexed, and `command_completed` with exit code zero, a 60-byte
+README count and SHA-256. The audit trail also recorded `workspace_destroyed`.
+The run had no evaluated patch or evaluation verdict; no model/evaluation or
+publication event was present. These checks did not re-execute the run.
+
+The web console previously requested patch review for every completed run.
+The local review API correctly returned 409 (`run has no evaluated patch`) for
+this command-only run, producing a misleading red error. The console now skips
+that request for completed runs with no patch/evaluation evidence and shows
+`Completed without a patch. No patch review or publication is expected.`
+Awaiting-approval and publishing runs still request review. Completed runs with
+either hash or evaluation/approval history also request review, including SSE
+updates before metadata refresh; incomplete evidence remains subject to the
+existing API integrity checks. No API guard was relaxed and no 409 response is
+blanket-suppressed.
+
+All 44 web tests passed, including six review-selection regressions, and the
+TypeScript check passed. The full Python suite was rerun: 193 tests, 181 passed
+and 12 PostgreSQL/Docker environment-dependent skips (not passes). The existing completed-run page was reloaded and
+independently inspected in the signed-in local browser: `COMPLETED`, the no-patch
+explanation and the saved audit events were visible, with no 409 alert. A local
+screenshot was saved outside tracked documentation. No live run was created or
+re-executed during the display fix, no paid model calls were made, and no GitHub
+changes or publication were performed. This is local worker/command proof, not
+AI-quality, controlled-profile authentication or live publication proof.
+
 ## Development authentication follow-up
 
 On 2-3 October 2026, local Clerk development sign-in displayed the verified
