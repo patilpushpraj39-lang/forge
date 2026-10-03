@@ -49,5 +49,23 @@ Local verification on 2026-10-04: the standalone command passed, as did all
 (not passes). All 50 web tests, scaffold validation and whitespace checks passed.
 Timeout/interruption tests mock termination and check that only the launched
 helper is targeted; they are not proof of every operating-system failure mode.
-CI reproduction of this new command remains pending. The existing generated
+The existing generated
 `apps/web/next-env.d.ts` change and running website build output were preserved.
+
+## Owner follow-up
+
+On 2026-10-04, the owner pasted the command's successful terminal report: the
+expected regression failed, the repaired public suite and four independent
+checks passed, both scripted decisions restored, four temporary workspaces
+were destroyed and source remained unchanged. It reported zero provider calls,
+charges and GitHub writes. This is owner-reported reproduction, not a signed
+attestation of pasted bytes.
+
+The owner then supplied a screenshot of
+[CI run 28](https://github.com/patilpushpraj39-lang/forge/actions/runs/37154522551)
+for `6a636ef`, showing `verify` and `sandbox-abuse` successful. The configured
+verify job includes this temporary workflow command. Detailed job logs and
+per-test counts were not independently inspected in this follow-up. Local and
+CI evidence complete this known-patch checkpoint only; live AI, controlled
+deployment and publication gates remain open. See the consolidated
+[project readiness checklist](project-readiness.md).

@@ -6,6 +6,12 @@ This repository is the public product monorepo. Hidden benchmark tests and answe
 
 ## Current status
 
+For a short tour of the verified development checkpoint, use the
+[project demo guide](docs/operations/project-demo.md) and
+[working and still unverified checklist](docs/verification/project-readiness.md).
+They distinguish local source/review evidence and known-patch tests from live AI,
+controlled deployment and GitHub publishing gates, which remain open.
+
 Milestones 0 and 1 are complete. Milestone 2 repository intelligence is
 implemented and reproduced in GitHub CI. Milestone 3 secure execution
 has passing Docker abuse and expired-container crash-cleanup checks. Milestone
