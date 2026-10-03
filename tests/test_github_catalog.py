@@ -10,7 +10,9 @@ from forge_publisher import (
     GitHubCatalog,
     GitHubResponse,
     PublisherConflictError,
+    PublisherTransientError,
 )
+from forge_publisher.catalog import _decode_blob
 
 
 def blob_sha(content: bytes) -> str:
@@ -32,7 +34,10 @@ class FakeTokens:
 
 
 class CatalogTransport:
-    def __init__(self, *, truncated: bool = False, unsafe: bool = False) -> None:
+    def __init__(
+        self, *, truncated: bool = False, unsafe: bool = False,
+        blob_line_ending: str | None = None,
+    ) -> None:
         self.requests: list[tuple[str, str, str, dict | None]] = []
         self.contents = {
             "README.md": b"immutable source\n",
@@ -40,6 +45,7 @@ class CatalogTransport:
         }
         self.truncated = truncated
         self.unsafe = unsafe
+        self.blob_line_ending = blob_line_ending
 
     def request(self, method, path, token, *, body=None, query=None):
         self.requests.append((method, path, token, query))
@@ -125,13 +131,18 @@ class CatalogTransport:
             content = next(
                 value for value in self.contents.values() if blob_sha(value) == sha
             )
+            encoded = base64.b64encode(content).decode("ascii")
+            if self.blob_line_ending is not None:
+                encoded = self.blob_line_ending.join(
+                    encoded[index:index + 60] for index in range(0, len(encoded), 60)
+                ) + self.blob_line_ending
             return GitHubResponse(
                 200,
                 {
                     "sha": sha,
                     "size": len(content),
                     "encoding": "base64",
-                    "content": base64.b64encode(content).decode("ascii"),
+                    "content": encoded,
                 },
                 {},
             )
@@ -183,6 +194,84 @@ class GitHubCatalogTests(unittest.TestCase):
                     42, "octo-org", "fixture", "main", destination
                 )
             self.assertFalse(destination.exists())
+
+    def test_materialization_accepts_github_wrapping_and_trailing_newline(self) -> None:
+        # A 60-byte blob produces the same two wrapped lines seen in the pilot.
+        for index, line_ending in enumerate(("\n", "\r\n")):
+            with self.subTest(line_ending=repr(line_ending)):
+                transport = CatalogTransport(blob_line_ending=line_ending)
+                transport.contents["README.md"] = b"source" * 10
+                destination = self.root / f"wrapped-{index}"
+                result = GitHubCatalog(self.tokens, transport).materialize_selected_repository(
+                    42, "octo-org", "fixture", "main", destination
+                )
+                self.assertEqual(result.file_count, 2)
+                self.assertEqual((destination / "README.md").read_bytes(), b"source" * 10)
+
+
+class BlobDecodingTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.content = b"verified source\n"
+        self.sha = blob_sha(self.content)
+        self.blob = {
+            "encoding": "base64",
+            "content": base64.b64encode(self.content).decode("ascii"),
+            "sha": self.sha,
+            "size": len(self.content),
+        }
+
+    def decode(self, blob: dict, *, sha: str | None = None) -> bytes:
+        return _decode_blob(
+            blob, self.sha if sha is None else sha, len(self.content),
+        )
+
+    def test_accepts_only_ascii_formatting_whitespace(self) -> None:
+        encoded = self.blob["content"]
+        wrapped = " \t\r\n" + encoded[:4] + " \t\r\n" + encoded[4:] + "\n"
+        self.assertEqual(self.decode({**self.blob, "content": wrapped}), self.content)
+
+    def test_malformed_base64_and_non_ascii_whitespace_are_rejected(self) -> None:
+        encoded = self.blob["content"]
+        for invalid in (
+            encoded + "!", encoded[:-1], "%%%%", encoded + "\u00a0",
+            encoded + "\u2003", encoded + "\v", encoded + "\f",
+        ):
+            with self.subTest(content=repr(invalid)):
+                with self.assertRaisesRegex(PublisherTransientError, "base64 is invalid"):
+                    self.decode({**self.blob, "content": invalid})
+
+    def test_blob_metadata_must_still_match_tree(self) -> None:
+        for change in (
+            {"sha": "0" * 40}, {"size": len(self.content) + 1}, {"content": None},
+        ):
+            with self.subTest(change=change):
+                with self.assertRaisesRegex(PublisherTransientError, "evidence does not match tree"):
+                    self.decode({**self.blob, **change})
+        with self.assertRaisesRegex(PublisherTransientError, "invalid encoding"):
+            self.decode({**self.blob, "encoding": "utf-8"})
+
+    def test_decoded_size_mismatch_is_still_rejected(self) -> None:
+        changed = {
+            **self.blob,
+            "content": "\n" + base64.b64encode(self.content + b"x").decode("ascii") + "\n",
+        }
+        with self.assertRaisesRegex(PublisherTransientError, "size does not match tree"):
+            self.decode(changed)
+
+    def test_decoded_hash_mismatch_is_still_rejected(self) -> None:
+        changed = {
+            **self.blob,
+            "content": "\n" + base64.b64encode(b"x" * len(self.content)).decode("ascii") + "\n",
+        }
+        with self.assertRaisesRegex(PublisherTransientError, "hash validation failed"):
+            self.decode(changed)
+
+    def test_sha256_git_objects_remain_supported(self) -> None:
+        sha = hashlib.sha256(
+            f"blob {len(self.content)}\0".encode("ascii") + self.content
+        ).hexdigest()
+        wrapped = {**self.blob, "sha": sha, "content": self.blob["content"] + "\n"}
+        self.assertEqual(self.decode(wrapped, sha=sha), self.content)
 
 
 if __name__ == "__main__":

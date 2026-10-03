@@ -364,7 +364,10 @@ def _decode_blob(value: Any, expected_sha: str, expected_size: int) -> bytes:
     ):
         raise PublisherTransientError("GitHub blob evidence does not match tree")
     try:
-        decoded = base64.b64decode(content, validate=True)
+        # GitHub wraps Base64 responses with ASCII whitespace. Normalize only
+        # that formatting; strict decoding still rejects other invalid bytes.
+        normalized = content.translate(str.maketrans("", "", " \t\r\n"))
+        decoded = base64.b64decode(normalized, validate=True)
     except (ValueError, TypeError) as error:
         raise PublisherTransientError("GitHub blob base64 is invalid") from error
     if len(decoded) != expected_size:
